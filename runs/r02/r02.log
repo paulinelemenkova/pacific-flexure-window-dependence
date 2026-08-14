@@ -1,0 +1,20 @@
+71 segments from 1867 profiles across 20 margins (0 profiles rejected)
+  adam    500  L=1.885e-02  d=9.16e-03 p=5.13e-03 b=3.39e-05  Te[aleutian_01]=18.9 km (773s)
+  adam   1000  L=3.199e-02  d=8.95e-03 p=1.06e-02 b=4.32e-05  Te[aleutian_01]=14.4 km (1646s)
+  adam   1500  L=4.784e-02  d=1.21e-02 p=1.82e-02 b=2.49e-05  Te[aleutian_01]=11.6 km (3081s)
+  adam   2000  L=2.666e-02  d=5.82e-03 p=1.29e-02 b=4.90e-06  Te[aleutian_01]=9.9 km (4763s)
+  adam   2500  L=2.898e-02  d=6.93e-03 p=8.35e-03 b=5.16e-06  Te[aleutian_01]=8.9 km (6537s)
+  adam   3000  L=5.672e-02  d=1.03e-02 p=2.58e-02 b=1.10e-06  Te[aleutian_01]=8.2 km (7987s)
+  adam   3500  L=3.032e-02  d=4.78e-03 p=1.62e-02 b=7.52e-07  Te[aleutian_01]=7.6 km (9175s)
+  adam   4000  L=2.879e-02  d=5.61e-03 p=9.75e-03 b=1.40e-05  Te[aleutian_01]=7.4 km (10241s)
+stage switch at iteration 4186: no improvement of 0.0001 over 2000 iters
+L-BFGS finished at iteration 4502 (13804s)
+/Users/polinalemenkova/Documents/My_Papers/1-PAPERS-ACCEPTED/250_JGR_ML_C/scripts/essential_data_scripts/train_pinn.py:613: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /Users/ec2-user/croot/libtorch_1786202472920/work/torch/csrc/autograd/generated/python_variable_methods.cpp:823.)
+  "loss_data": float(l_d), "loss_phys": float(l_p),
+
+wrote runs/r02/history.csv, segments.csv, run.json
+Te over 71 segments: median 9.4 km, range 4.0-67.0 km
+
+next:
+  python3 fig_convergence.py --history runs/r02/history.csv --stage-switch 4186 --segment aleutian_01 --outdir figures

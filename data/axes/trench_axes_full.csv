@@ -1,0 +1,21 @@
+trench,pb2002_records,L_full_km,L_table1_km,difference_km,N_bins_at_148km
+Aleutian,NA/PA[0],3772,3772,-0,25
+Kuril-Kamchatka,OK/PA[0],2223,2223,-0,15
+Japan,PA\OK[0],793,793,+0,5
+Izu-Bonin,PS/PA[1],1128,1128,-0,8
+Mariana,MA/PA[0],1867,1867,-0,13
+Yap,PS/PA[0],691,691,-0,5
+Palau,CL-PS[0],848,848,+0,6
+Ryukyu,ON/PS[0]+ON/PS[1],1125,1125,+0,8
+Manila,PS/SU[0],610,610,-0,4
+Philippine,PS\SU[0],1634,1634,-0,11
+New Britain,SB/SS[0],655,655,+0,4
+San Cristobal,PA/AU[0],1386,1386,-0,9
+Vanuatu,NH/AU[0],1351,1351,+0,9
+Tonga,TO/PA[0],1126,1126,-0,8
+Kermadec,KE/PA[0],1590,1590,-0,11
+Hikurangi,KE/PA[0],716,716,-0,5
+Puysegur,PA/AU[1]+AU\PA[0],834,834,-0,6
+Cascadia,JF\NA[0],1415,,,10
+Middle America,CO\NA[0]+CA/CO[0],2256,2256,+0,15
+Peru-Chile,NZ\SA[0]+NZ\SA[1]+NZ\ND[0]+NZ\AP[0],6344,6344,-0,43

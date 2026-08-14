@@ -1,0 +1,11 @@
+# Python 3.12.13. See docs/environment.md for the full environment.
+numpy==2.4.6
+scipy==1.18.0
+pandas==3.0.5
+matplotlib==3.11.1
+scikit-learn==1.9.0
+shap==0.52.0
+pygmt==0.19.0
+# GMT 6.5.0 is installed separately (not a pip package):
+#   conda install -c conda-forge gmt=6.5.0
+#   or see https://www.generic-mapping-tools.org/download/

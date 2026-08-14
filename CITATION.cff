@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use this software or the derived data, please cite both the archive and the article."
+title: "pacific-flexure-window-dependence: window-free recovery of flexural parameters at circum-Pacific trenches"
+abstract: >-
+  Code and derived per-segment data for the physics-informed neural inversion of
+  bending profiles at twenty circum-Pacific subduction margins, together with the
+  windowed least-squares baseline against which the analysis-window dependence is
+  measured.
+type: software
+authors:
+  - family-names: Lemenkova
+    given-names: Polina
+    orcid: "https://orcid.org/0000-0002-5759-1089"
+    affiliation: "Saint-Petersburg State University, St. Petersburg 199034, Russia"
+  - family-names: Piskarev
+    given-names: Alexey L.
+    orcid: "https://orcid.org/0000-0002-6957-0242"
+    affiliation: "Saint-Petersburg State University, St. Petersburg 199034, Russia; Institute for Geology and Mineral Resources of the Ocean (VNIIOkeangeologia), St. Petersburg 190121, Russia"
+license: MIT
+repository-code: "https://github.com/paulinelemenkova/pacific-flexure-window-dependence"
+version: 1.0.0
+date-released: "2026-08-14"
+keywords:
+  - lithospheric flexure
+  - effective elastic thickness
+  - subduction
+  - physics-informed neural networks
+  - Pacific Ocean

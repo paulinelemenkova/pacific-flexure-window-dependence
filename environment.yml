@@ -1,0 +1,15 @@
+name: pacific-trench-seismicity
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12.13
+  - numpy=2.4.6
+  - scipy=1.18.0
+  - pandas=3.0.5
+  - matplotlib=3.11.1
+  - scikit-learn=1.9.0
+  - pygmt=0.19.0
+  - gmt=6.5.0
+  - pip
+  - pip:
+      - shap==0.52.0

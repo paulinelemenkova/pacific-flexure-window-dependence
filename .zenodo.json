@@ -1,0 +1,27 @@
+{
+  "title": "pacific-flexure-window-dependence: window-free recovery of flexural parameters at circum-Pacific trenches",
+  "upload_type": "software",
+  "license": "MIT",
+  "access_right": "open",
+  "creators": [
+    {
+      "name": "Lemenkova, Polina",
+      "affiliation": "Saint-Petersburg State University, St. Petersburg 199034, Russia",
+      "orcid": "0000-0002-5759-1089"
+    },
+    {
+      "name": "Piskarev, Alexey L.",
+      "affiliation": "Saint-Petersburg State University, St. Petersburg 199034, Russia; Institute for Geology and Mineral Resources of the Ocean (VNIIOkeangeologia), St. Petersburg 190121, Russia",
+      "orcid": "0000-0002-6957-0242"
+    }
+  ],
+  "description": "Code and derived per-segment data supporting the article on analysis-window dependence in flexural parameter recovery at circum-Pacific subduction margins. Contains the trench-axis tracing pipeline, the profile extraction and correction chain, the physics-informed neural inversion, the windowed least-squares baseline and its window sweep, and one script per figure. Source grids are open access and are cited rather than redistributed; derived tables are released under CC BY 4.0 and the code under MIT.",
+  "keywords": [
+    "lithospheric flexure",
+    "effective elastic thickness",
+    "subduction zones",
+    "physics-informed neural networks",
+    "Pacific Ocean",
+    "GMT"
+  ]
+}
