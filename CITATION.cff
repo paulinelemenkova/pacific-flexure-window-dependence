@@ -18,8 +18,8 @@ authors:
     affiliation: "Saint-Petersburg State University, St. Petersburg 199034, Russia; Institute for Geology and Mineral Resources of the Ocean (VNIIOkeangeologia), St. Petersburg 190121, Russia"
 license: MIT
 repository-code: "https://github.com/paulinelemenkova/pacific-flexure-window-dependence"
-version: 1.0.0
-date-released: "2026-08-14"
+version: 1.0.1
+date-released: "2026-08-15"
 keywords:
   - lithospheric flexure
   - effective elastic thickness

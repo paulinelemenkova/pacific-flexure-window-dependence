@@ -69,7 +69,8 @@ OPTIONS
                 by the physics-informed inversion; drawn as a heavy contour.
                 Omit and the contour is skipped -- nothing is invented when the
                 value is not yet available.
-  --published   published window choices as "landward,seaward" pairs in km,
+  --published   published window choices as "landward,seaward" pairs in km;
+                nothing is marked unless this is given,
                 applied to every panel. PLACEHOLDERS until replaced.
   --scale       median (default) plots Te divided by each panel's own median,
                 on a scale centred on one, so that margins of very different
@@ -122,6 +123,13 @@ RMS_MAX_KM = 1.2
 # The twenty trenches in the order of Table 2 and of axes_full/, so that the
 # panel grid reads in the same sequence as the rest of the manuscript rather
 # than alphabetically.
+# Display names where the directory key and the manuscript label differ. The
+# KEY is the folder under profiles_csv/ and must not be renamed; the VALUE is
+# what appears on the panel and in the printed table, and must match the name
+# used in Table 2 and in the text. "New Hebrides" and "Vanuatu" are the same
+# margin; the manuscript uses Vanuatu throughout, so the figure must too.
+DISPLAY_NAME = {"new_hebrides": "Vanuatu"}
+
 TRENCH_ORDER = [
     "aleutian", "kuril-kamchatka", "japan", "izu-bonin",
     "mariana", "yap", "palau", "ryukyu",
@@ -130,12 +138,15 @@ TRENCH_ORDER = [
     "hikurangi", "puysegur", "middle_america", "peru-chile",
 ]
 
-# PLACEHOLDER. Window choices of previous studies, as (landward limit, seaward
-# limit) in km from the axis. Substitute the real values -- Hunter & Watts, Bry
-# & White, Contreras-Reyes -- before submission; every pair must satisfy
-# landward < seaward <= HALFLEN_KM or it is dropped with a warning rather than
-# drawn outside the panel.
-PUBLISHED = [(0.0, 150.0), (0.0, 200.0), (20.0, 220.0), (0.0, 250.0)]
+# Window choices of previous studies are NOT built in. There is deliberately no
+# default: a marker drawn from a stand-in value attributes an analysis window to
+# a study that did not choose it, and the resulting figure asserts something
+# about the literature that is not true. Supply real pairs on the command line,
+#     --published 0,150 20,220
+# as (landward limit, seaward limit) in km from the axis, each satisfying
+# landward < seaward <= HALFLEN_KM or it is dropped with a note rather than
+# drawn outside the panel. With no --published argument no markers are drawn,
+# and the caption must then carry no clause about published windows.
 
 
 # ----------------------------------------------------------------- profiles --
@@ -221,8 +232,17 @@ def trench_surface(profdir, trench, near, far, nprofiles, sediment=True):
     files = profile_files(profdir, trench)
     if not files:
         return None, 0, 0
-    take = files if len(files) <= nprofiles else [
-        files[i] for i in np.linspace(0, len(files) - 1, nprofiles).astype(int)]
+    if len(files) <= nprofiles:
+        take = files
+    else:
+        # np.linspace(...).astype(int) truncates, so two neighbouring samples
+        # can collapse onto the same index and the panel then reports fewer
+        # profiles than were requested -- Kermadec returned 23 of a requested
+        # 24. Rounding and de-duplicating keeps the count as asked while
+        # preserving the even spacing along strike.
+        idx = np.unique(np.rint(
+            np.linspace(0, len(files) - 1, nprofiles)).astype(int))
+        take = [files[i] for i in idx]
     stack, used = [], 0
     for path in take:
         x, d = read_profile_file(path, sediment)
@@ -381,6 +401,8 @@ def build(panels, near, far, windowfree, published, scale, cmap_name,
     set_rc(base_font)
     fig, axes = plt.subplots(nrows, ncols, figsize=figsize, sharex=True,
                              sharey=True, constrained_layout=True)
+    # Room for the two-line header annotation above every panel.
+    fig.get_layout_engine().set(hspace=0.09)
     axes = np.atleast_1d(axes).ravel()
     label_contours = len(panels) <= 6
 
@@ -531,9 +553,13 @@ def build(panels, near, far, windowfree, published, scale, cmap_name,
         # off the end and collided with the neighbour, so both numbers now sit
         # inside the panel.
         head = f"{tags[k]} {title}"
+        # Two lines, not one: on a four-centimetre panel a long name plus the
+        # metric plus the profile count did not fit on the header line, and
+        # (b) Kuril-Kamchatka and (s) Middle America ran into the annotation.
+        # Stacking the two numbers halves the width the annotation needs.
         if np.isfinite(dw):
             note = (f"$\\Delta_w$ = {dw:.2f}"
-                    + (f",  {note}" if note else ""))
+                    + (f"\n{note}" if note else ""))
         note = note or ""
         # Outside the axes, above the frame. Inside the panel the tag sat over
         # the hot ridge at small seaward limits, which is the feature the
@@ -544,9 +570,14 @@ def build(panels, near, far, windowfree, published, scale, cmap_name,
             # On the header line, right aligned, so that nothing is written
             # over the surface at all. Smaller and in dimgray, so it reads as
             # an annotation of the panel rather than part of its title.
-            ax.text(1.0, 1.015, note, transform=ax.transAxes, ha="right",
-                    va="bottom", fontsize=tagsize - 1.0, color="dimgray",
-                    zorder=6)
+            # Condensed face and a smaller size, so the annotation occupies
+            # as little of the header line as possible; stretch="condensed"
+            # resolves to Nimbus Sans Narrow, Arial Narrow or Helvetica
+            # Condensed, whichever the system carries, and falls back to the
+            # regular face without error if none is present.
+            ax.text(1.0, 1.155, note, transform=ax.transAxes, ha="right",
+                    va="top", fontsize=tagsize - 1.8, color="dimgray",
+                    stretch="condensed", linespacing=1.25, zorder=6)
 
     grid = axes.reshape(nrows, ncols)
     for ax in grid[-1, :]:
@@ -619,7 +650,7 @@ def main():
                          "the twenty-trench survey")
     ap.add_argument("--trenches", nargs="*", default=None,
                     help="survey subset, in order; default all twenty")
-    ap.add_argument("--nprofiles", type=int, default=12,
+    ap.add_argument("--nprofiles", type=int, default=24,
                     help="profiles sampled per trench in survey mode")
     ap.add_argument("--windowfree", type=float, nargs="*", default=None,
                     help="physics-informed estimate per panel, km, in order")
@@ -690,20 +721,17 @@ def main():
     if far.max() - near.min() < MIN_SPAN_KM:
         raise SystemExit(f"no window on the grid spans {MIN_SPAN_KM:.0f} km")
 
-    pub_given = bool(a.published)
-    pub = [tuple(float(v) for v in p.split(","))
-           for p in a.published] if pub_given else list(PUBLISHED)
-    kept = []
-    for xn, xf in pub:
+    pub = []
+    for p in (a.published or []):
+        xn, xf = (float(v) for v in p.split(","))
         if xn < xf <= a.halflen:
-            kept.append((xn, xf))
+            pub.append((xn, xf))
         else:
             print(f"note: published window ({xn:.0f}, {xf:.0f}) km lies "
                   f"outside the profile and is not drawn")
-    pub = kept
-    if not pub_given:
-        print("WARNING: the marked published windows are placeholders. Pass "
-              "--published with the real values before submission.")
+    if pub:
+        print(f"marking {len(pub)} published window(s) supplied on the "
+              f"command line")
 
     panels = []
     if survey:
@@ -715,7 +743,9 @@ def main():
             te, used, avail = trench_surface(
                 a.profiles, trench, near, far, a.nprofiles,
                 sediment=not a.no_sediment)
-            title = trench.replace("_", " ").replace("-", "\u2013").title()
+            title = DISPLAY_NAME.get(
+                trench,
+                trench.replace("_", " ").replace("-", "\u2013").title())
             note = f"n = {used}/{avail}" if avail else "no profiles"
             print(f"  {trench:<18s} {used:3d} of {avail:3d} profiles used")
             panels.append((te, title, note))
