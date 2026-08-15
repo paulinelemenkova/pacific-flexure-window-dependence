@@ -1,0 +1,3185 @@
+\documentclass[final]{agujournal2019}
+\usepackage{amsmath}
+\linenumbers
+
+% -------------------------------------------------------------------------
+\usepackage{float}
+\graphicspath{{figures/}}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\newcolumntype{R}{>{\raggedleft\arraybackslash}X}
+\usepackage[final]{listings}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,frame=single,
+        captionpos=b,showstringspaces=false}
+
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+
+\draftfalse
+
+\journalname{JGR: Machine Learning and Computation}
+
+\begin{document}
+
+% -------------------------------------------------------------------------
+\title{Resolving window dependence in flexural parameter recovery at twenty
+Pacific trenches by physics-informed neural inversion}
+
+
+\authors{ %
+  Polina Lemenkova\affil{1},
+  Alexey L. Piskarev\affil{1,2}
+}
+
+\affiliation{1}{Saint-Petersburg State University, St. Petersburg 199034, Russia}
+\affiliation{2}{Institute for Geology and Mineral Resources of the Ocean
+(VNIIOkeangeologia), St. Petersburg 190121, Russia}
+
+% -------------------------------------------------------------------------
+\begin{keypoints}
+\item Moving only the interval fitted on a fixed bending profile changes the
+recovered elastic thickness by about forty per cent
+\item An elastic plate equation imposed at every point along the profile
+recovers the thickness without any fitted interval
+\item Recovered thickness is near uniform at nine kilometres and one fifth of
+the mechanical thickness with a physics-informed neural network (PINN) across twenty Pacific trenches
+\end{keypoints}
+
+\begin{abstract}
+The oceanic lithosphere bends downward before it enters a subduction zone, and
+the resistance of the plate to that bending is summarised by its effective
+elastic thickness, the parameter through which the mechanical state of the
+incoming plate is read. Published determinations disagree, and part of the
+disagreement has never been examined: every profile-based inversion is fitted
+over an interval of the profile chosen by the analyst, and that interval is
+imposed before the fit and reported with no uncertainty of its own. Here the
+flexural parameters of twenty circum-Pacific trenches are recovered without such
+an interval, by a physics-informed neural network (PINN). The deflection is
+represented by a neural network, the thin-elastic-plate equation is imposed as a
+residual at collocation points spanning the whole profile, and the elastic
+thickness is a trainable coefficient recovered jointly with the network across 71
+along-strike segments, from open-access bathymetry, seafloor age, sediment
+thickness and satellite gravity. Because the governing equation enters the
+training objective itself, the PINN estimate is constrained by the physics
+everywhere on the profile rather than by an interval imposed upon it.
+Sweeping the interval through the classical inversion, on fixed profiles and a
+fixed physical model, reproduces an interquartile spread in recovered thickness
+of 40 per cent of the profile median, and a full range across defensible
+windows of 121 per cent, from 428 profiles at twenty margins. A measurable
+share of the published disagreement is therefore procedural rather than
+physical, and the reported metric allows any profile-fitting study to quantify
+the same dependence on its own data.
+\end{abstract}
+
+\section*{Plain Language Summary}
+Where one of the great plates of the sea floor slides beneath another, it first
+bends downward, and the sea floor in front of the deep trench rises into a long,
+low swell. The shape of that bend records how stiff the plate is, and stiffness
+matters because it controls where the plate cracks, how those cracks let sea
+water into the rocks below, and how the plate carries the forces that drive it
+down. Stiffness is measured by fitting a simple physical model of a bending
+sheet to the observed shape of the sea floor. Doing so requires a decision about
+which stretch of sea floor to include in the fit, and there is no rule for
+making that decision. Different choices give different answers from the
+same sea floor. This study measures how large that effect is, and then removes
+the decision altogether by requiring the bending equation to hold everywhere
+along the profile instead of fitting a chosen stretch of it. Applying one
+automatic procedure to twenty trenches around the Pacific Ocean, using only
+freely available data, gives a set of stiffness values that can be compared with
+each other for the first time. The procedure represents the bent sea floor by a
+neural network that is required to satisfy the bending equation itself, an
+approach known as a physics-informed neural network.
+
+% =========================================================================
+\section{Introduction}\label{sec:intro}
+
+Subduction begins with bending. Before the oceanic lithosphere descends beneath
+an overriding plate it flexes downward under the load applied at the plate
+boundary, and that flexure produces the two morphological features that define
+every convergent margin: the trench itself and the broad topographic swell of
+the outer rise seaward of it \cite{Kirby2022Isostasy,Kirby2022Flexure}. The
+resistance of the plate to this deformation is summarised by a single quantity,
+the effective elastic thickness, which sets the flexural rigidity and therefore
+controls the wavelength of the deflection, the amplitude and position of the
+outer-rise crest, and the magnitude of the bending stresses carried by the
+plate \cite{ContrerasReyesOsses2010,Manriquez2014}. Because those stresses
+govern where the plate fails in extension, the effective elastic thickness also
+conditions outer-rise normal faulting and, through the fractures it opens, the
+pathways by which seawater penetrates the crust and uppermost mantle
+\cite{ContrerasReyes2007,Craig2014}. It is, in short, the parameter through
+which the mechanical state of the incoming plate is read.
+
+Estimating that parameter has therefore been a persistent objective of marine
+geophysics, and the established approach is to fit the deflection predicted by a
+thin elastic plate to the observed shape of the margin. The plate is treated
+either as continuous or as broken at the trench axis, and the free parameters
+are adjusted until the predicted deflection reproduces the bathymetric profile,
+the free-air gravity anomaly, or both together
+\cite{Tandon2000,ContrerasReyesOsses2010}. Spectral formulations pursue the same
+end through the admittance between topography and gravity rather than through
+the profile shape \cite{CalmantCazenave1987,Manea2005}, and three-dimensional
+treatments relax the assumption of a laterally uniform plate by allowing the
+elastic thickness to vary along and across strike \cite{Manriquez2014}. Each of
+these formulations has been made possible by the global coverage of
+satellite-derived bathymetry and marine gravity, which supply profiles at
+margins where shipborne surveys remain sparse
+\cite{Sandwell2014,CalmantBaudry1996,BaudryCalmant1996}. The physical model is
+thus shared across the literature; what differs is how it is fitted.
+
+That difference has consequences, because the values reported for individual
+margins do not agree. Estimates vary substantially from one subduction zone to
+another, which is expected given the range of plate ages and loading conditions
+involved \cite{DiGiuseppe2009,SchettinoTassi2011}, but they also vary between
+studies of the same margin, which is not. Several physical explanations have
+been advanced for the discrepancy. Inelastic yielding reduces the recovered
+thickness below the mechanical thickness of the plate, so that the fitted value
+depends on how much of the bending the model is asked to reproduce
+\cite{ContrerasReyesOsses2010,Tandon2000}. Extensional failure at the outer rise
+weakens the plate progressively as it approaches the axis, making a single
+uniform value an approximation to a quantity that changes along the profile
+\cite{Craig2014,KaoChen1996}. Hydration and thermal structure have both been
+invoked, as has genuine along-strike variability within a single trench
+\cite{ContrerasReyes2007,MoscosoContrerasReyes2012}. These explanations are
+plausible and probably all contribute, yet they share an assumption worth
+examining: that the disagreement is physical in origin.
+
+A procedural source of disagreement has received far less attention. Every
+profile-based inversion requires the analyst to choose an interval of the
+profile over which the elastic model is fitted --- a seaward limit beyond which
+the data are considered unaffected by bending, and a landward limit inside which
+the elastic description is considered to fail. This analysis window is not
+estimated from the data; it is imposed before the fit, and it differs between
+studies because no procedure fixes it. Published work adopts windows of
+different length, different origin relative to the trench axis, and different
+treatment of the outer-rise crest \cite{Manriquez2014,Tandon2000}, and the
+recovered thickness is reported without an uncertainty attributable to that
+choice \cite{ContrerasReyesOsses2010}. The window is therefore a free parameter
+of the method that enters every published value and is quantified in none of
+them. Its contribution to the scatter in the literature has never been isolated
+from the physical contributions described above.
+
+Isolating it matters for interpretation rather than for tidiness. Effective
+elastic thickness is not an end in itself; it is used to infer the depth of the
+controlling isotherm, to estimate the degree of inelastic reduction relative to
+the mechanical thickness, and to compare the strength of plates of differing
+age across the ocean basins \cite{DiGiuseppe2009,CalmantCazenave1987}. Each of
+those inferences propagates whatever error the fitting procedure introduces. If
+a substantial share of the observed spread is procedural, then age-strength
+relations and isotherm depths calibrated against the published compilation
+inherit a bias whose size is unknown. The problem is sharpest for basin-wide
+comparison, where values obtained under different conventions are placed on a
+single plot: any such comparison presumes a common procedure that does not
+exist. Applying one automated, script-driven treatment to every margin of the
+Pacific basin removes that presumption, in the manner by which basin-wide
+structural syntheses are now assembled from open grids
+\cite{Wessel2019,Bird2003,Piskarev2019Book,Lemenkova202213,Muller2017,Sandwell2014}.
+
+The formulation adopted here removes the window rather than standardising it.
+Instead of minimising a misfit over a chosen interval, the deflection is
+represented by a neural network whose derivatives are obtained through automatic
+differentiation, and the governing flexure equation is imposed as a residual
+evaluated at collocation points distributed across the entire profile
+\cite{Raissi2019,Karniadakis2021}. The solution is constrained by the physics at
+every point rather than by the extent of a fitting interval, so no seaward or
+landward limit enters the estimate. Such a formulation is termed a physics-informed neural network
+(PINN) \cite{Raissi2019,Karniadakis2021}. The term denotes a training
+framework rather than a learning algorithm in the sense that gradient-boosted
+trees or random forests are algorithms: the network architecture is
+conventional, and what distinguishes the approach is the objective it is trained
+against. Alongside any misfit to observations, the loss carries the residual of
+the governing differential equation, evaluated by automatic differentiation at
+points where no measurement exists, so that a candidate solution is penalised
+for violating the physics as well as for departing from the data. Two
+consequences follow, and both bear directly on the problem posed here. Where
+observations are sparse or unevenly distributed the residual continues to
+constrain the solution, because it can be evaluated anywhere in the domain;
+and where a coefficient of the governing equation is unknown, it may be declared
+trainable and recovered jointly with the network, which converts a forward
+solver into an inverse one without a separate optimisation loop.
+
+That second property is why the framework suits the present problem. The
+governing equation of plate flexure is known and its coefficient, the flexural
+rigidity, is precisely the quantity sought, so the physics can be imposed while
+the unknown parameter is learned. The approach has developed rapidly since its
+introduction and now includes gradient-enhanced and operator-learning variants
+\cite{Wang2025gIBPINN,Yang2026DeepONet}, together with treatments of the
+spectral bias that limits how finely such a network resolves a profile
+\cite{WangWangPerdikaris2021}. Within the solid Earth sciences PINNs have been
+applied most extensively to the seismic wave equation, both as forward solvers
+and within full-waveform inversion
+\cite{RashtBehesht2022,SongAlkhalifah2021,ZhangZhuGao2023,Schuster2024}, to the
+eikonal equation for traveltime computation \cite{Waheed2021PINNeik}, to
+hypocentre inversion under a differentiable traveltime model
+\cite{Smith2022HypoSVI}, and to petrophysical inversion
+\cite{Li2024Probabilistic,Li2024Bayesian}, in formulations that impose the
+residual through fully connected networks or through convolutional and recurrent
+architectures encoding the discretisation directly
+\cite{Gao2021PhyGeoNet,Ren2022PhyCRNet,Ren2024SeismicNet,Ding2023Topography,Ding2023HalfSpace,Hughes2019}.
+What these applications share is the setting in which a PINN is most
+advantageous: the governing equation is established, the observations are
+incomplete, and the quantity of interest is a coefficient or a field that
+classical inversion recovers only under auxiliary choices.
+A parallel line of work infers the governing equation itself from data rather
+than imposing it \cite{BongardLipson2007,SchmidtLipson2009,Brunton2016,Rudy2017,CampsValls2023,YuWang2024},
+and the two meet where a known equation is imposed while its coefficients are
+estimated \cite{Chen2021Scarce,Rao2023}, which is the position taken here. Its application to
+lithospheric flexure, where the governing equation is a single ordinary
+differential equation with a physically meaningful coefficient, has not been
+reported. The magnitude of the effect that motivates this reformulation is
+illustrated for a single profile in Figure~\ref{fig:windowproblem}.
+
+\begin{figure}\centering
+  	\noindent\includegraphics[width=0.90\textwidth]{fig_windowproblem}
+  \caption{Dependence of the recovered effective elastic thickness on the
+  analysis window, for a single trench-normal profile. The two panels plot
+  different quantities. \textbf{Main panel:} sampled depth against distance
+  from the trench axis, positive seaward. Grey, the observed section;
+  coloured, the broken-plate solutions obtained by least-squares inversion of
+  the seaward slope within four alternative windows, each labelled with the
+  effective elastic thickness it returns. The broken vertical line marks the
+  axis; the landward reach is greyed and enters no fit. \textbf{Inset:}
+  recovered effective elastic thickness against the seaward window limit,
+  from one hundred and one independent inversions of the same profile at
+  increments of two kilometres, with the four windows of the main panel
+  marked in the corresponding colours. Software used for plotting figure:
+  Python \texttt{3.12.13}, Matplotlib \texttt{3.11.1}, SciPy
+  \texttt{1.18.0}, NumPy \texttt{2.4.6}. Data: GEBCO. Source: authors.}
+  \label{fig:windowproblem}
+\end{figure}
+
+Four windows drawn from the published range return four different values of
+the effective elastic thickness from that single profile, and sweeping the
+seaward limit continuously shows the estimate drifting rather than settling on
+one. Neither the observations nor the physical model changes across those
+inversions; only the interval over which the model is fitted.
+
+This study therefore pursues two coupled objectives: to measure how much of the
+disagreement in published flexural parameters is attributable to the analysis
+window, and to recover those parameters without one. Both are carried out on the
+same set of twenty circum-Pacific trenches, using open-access grids throughout,
+so that the methodological result and the geophysical result rest on identical
+data. The classical windowed inversion is reproduced faithfully and swept across
+a systematic grid of window limits, and the physics-informed formulation is
+trained jointly across all margins with the flexural parameters as trainable
+coefficients. The contributions are as follows:
+\begin{itemize}
+  \item a quantification of the window-induced spread in recovered flexural
+  parameters, measured across twenty subduction margins under a single
+  reproducible procedure;
+  \item a differentiable elastic-plate formulation that recovers the effective
+  elastic thickness without an analysis window, validated against synthetic
+  profiles of known parameters;
+  \item joint recovery of the full flexural parameter set --- elastic
+  thickness, bending moment, shear force and maximum curvature --- with
+  ensemble-based uncertainty propagated to each;
+  \item an open implementation and a released per-segment parameter database,
+  enabling every figure to be regenerated from the cited open-access grids.
+\end{itemize}
+
+The remainder of the paper is organised as follows. Section~\ref{sec:data}
+describes the twenty margins and the open-access datasets from which the bending
+profiles are constructed. Section~\ref{sec:methods} sets out the preprocessing
+chain, the governing equation shared by both inversions, the windowed baseline,
+the PINN formulation, and the validation and uncertainty design.
+Section~\ref{sec:results} reports the window-sweep experiment and the recovered
+parameters, Section~\ref{sec:discussion} interprets them against the published
+compilation, and Section~\ref{sec:conclusions} states the conclusions.
+
+% =========================================================================
+\section{Study Area and Data}\label{sec:data}
+
+\subsection{Study Area}\label{sec:studyarea}
+
+The circum-Pacific belt is the only setting in which one inversion procedure can
+be applied to a nearly continuous population of subducting plates spanning most
+of the range of lithospheric ages and convergence rates found on Earth. Twenty
+trenches are treated here (Figure~\ref{fig:studyarea}). Together they enclose
+the basin from the Aleutian arc in the north, southward along the western margin
+through the intra-oceanic arcs of the Philippine Sea region, across the
+southwest Pacific to New Zealand, and back along the eastern margin from
+Cascadia to southern Chile. Each of these margins presents the same pair of
+morphological features on its seaward side: an axis of maximum depth and, beyond
+it, a broad flexural swell \cite{Stern2002}. That pair is the observable which
+the elastic-plate model is written to reproduce, and its presence at every one
+of the twenty margins is what makes a single, uniformly applied procedure
+defensible.
+
+One of the twenty requires a qualification that is carried through the whole
+analysis. At Cascadia the subduction zone is unquestionably active -- the Juan
+de Fuca plate continues to descend beneath North America -- but the trench
+itself has no bathymetric expression, having been buried beneath the turbidite
+fill of the Astoria and Nitinat fans and the accretionary prism built from it.
+The margin is therefore a sediment-buried, or morphologically extinct, trench
+rather than a relict subduction zone: what has been lost is the landform, not
+the process. The distinction matters here because the observable this study
+inverts is the landform. Where the axial fill is thicker than the flexural
+deflection it conceals, no axis of maximum depth can be traced and no outer-rise
+crest can be located, so the pair of features named above is absent and the
+elastic-plate model has nothing to be fitted to. Cascadia is the margin of this
+belt at which that condition holds, and it is therefore absent from the
+inventory of Table~\ref{tab:trenches} rather than carried through it as a row of
+zeros: the belt is described here by the margins whose landform records the
+bending, and the one active margin whose landform does not is named and
+accounted for in this paragraph instead.
+
+The twenty margins fall into three groups that differ in the properties
+governing flexure. The northwestern and western Pacific group consumes the
+oldest oceanic lithosphere on the planet beneath intra-oceanic or thin
+continental upper plates, and contains the deepest trenches and the most starved
+axial fills; it runs from the Aleutian arc through Kuril-Kamchatka, Japan,
+Izu-Bonin, Mariana, Yap and Palau to Ryukyu, Manila and the Philippine Trench.
+The southwestern group, from New Britain and San Cristobal through Vanuatu,
+Tonga and Kermadec to Hikurangi and Puysegur, is characterised by rapid
+convergence, active trench rollback and young back-arc basins, so that the upper
+plate exerts a stronger control on trench position than elsewhere. The eastern
+group is of Andean type, where the young and warm lithosphere of the Juan de
+Fuca, Cocos and Nazca plates descends beneath continental margins at Cascadia,
+Middle America and Peru-Chile, and where the terrigenous supply is at some
+latitudes large enough to bury the flexural signal entirely -- completely so at
+Cascadia, which for that reason supplies no profile to this study.
+Plate age, convergence rate and back-arc stress regime vary systematically
+between the three groups \cite{HeuretLallemand2005,DeMets2010,Bird2003}, so the
+set covers, rather than samples, the parameter range over which flexural
+rigidity is expected to differ. The same basin has supplied the reference
+determinations of trench flexure against which any new estimate is read
+\cite{LevittSandwell1995,Bodine1981}, and the spectral and spatial estimators
+applied elsewhere to continental lithosphere
+\cite{StewartWatts1997,WieczorekSimons2005,Zamani2014} return values that are
+not directly comparable with profile fits, which is part of why a single
+uniform procedure is needed.
+
+An entire trench is too coarse a unit for this purpose, because the age of the
+incoming plate, the state of the outer rise and the thickness of the axial fill
+all change along strike, and a parameter fitted to a whole margin averages over
+those changes. The twenty traced axes total 32,364~km, and each is therefore
+partitioned into bins of uniform along-strike length, 148~km, giving 220
+segments; every flexural parameter reported below is a per-segment quantity.
+Segmentation serves two ends at once. It confines each estimate to a reach over
+which the plate can be treated as laterally uniform, and it raises the number of
+independent determinations from twenty to 220, so that the window-induced spread
+of Section~\ref{sec:res:window} is measured over a population large enough to
+separate from geological variation. The boundaries follow the automatically
+traced axis at fixed intervals rather than published province divisions, so no
+interpretive segmentation of the margins enters the analysis. Axis lengths,
+segment counts, retained profile numbers and mean plate ages are given per
+trench in Table~\ref{tab:trenches}.
+
+Three conventions govern that inventory. Lengths are measured along the traced
+axis and not along the plate boundary, which is the longer of the two wherever
+they diverge. The segment count is the partition the axis length implies at the
+fixed 148~km spacing, and is therefore an upper bound on the number of segments
+that carry a flexural estimate, a segment left empty after profile screening
+being dropped rather than filled; the number retained is reported with
+the results. Mean plate age is the arithmetic mean over the retained profiles of
+each margin, sampled at the axis node, and the profile counts follow the
+screening criteria of Section~\ref{sec:preprocessing}. Cascadia is not listed.
+The turbidite fill of the Astoria and Nitinat fans leaves no depth minimum to
+trace and no outer rise to fit, so the margin supplies no profile, carries no
+segment and enters no result; a census row of zeros would state only that the
+method cannot be applied there, which is said here instead. Vityaz is listed
+in its place. It is a relict trench: subduction has ceased, so it has no active
+plate boundary to seed the trace and its axis is seeded from the bathymetry
+instead, by the same procedure that then snaps every node to the local depth
+minimum. Including it keeps the inventory to the margins that contribute a
+profile, and adds the one end-member in the belt where the outer rise formed
+under a convergence that has since stopped.
+
+\begin{figure}\centering
+  	\includegraphics[width=0.95\textwidth]{fig_studyarea}
+  \caption{The twenty circum-Pacific trenches treated in this study. Shaded
+  bathymetric relief on an equidistant cylindrical projection centred on the
+  date line, illuminated from the northwest. Red, the trench axes traced
+  automatically as the locus of deepest nodes; black, the plate boundaries of
+  the PB2002 model; thin grey, contours of seafloor age at 20 million year
+  intervals; tick marks along each axis, the boundaries of the 148 kilometre
+  along-strike segments. Trenches are labelled by name and grouped by the
+  tectonic setting of Table~\ref{tab:trenches}. Grey, land from the shoreline
+  database. Software used for plotting figure: GMT \texttt{6.5.0}. Data: GEBCO bathymetry, EarthByte seafloor age, PB2002 plate
+  boundaries. Source: authors.}
+  \label{fig:studyarea}
+\end{figure}
+
+\subsection{Data and Materials}\label{sec:datamaterials}
+
+Every input is an open-access global grid or vector database; no fieldwork,
+proprietary survey or restricted product enters the study, and each margin is
+treated with the same release of the same source, so that no part of the
+between-trench variation can be attributed to a change of data. The primary
+observable is bathymetry, taken from the General Bathymetric Chart of the Oceans
+(GEBCO) grid at 15 arc-second spacing \cite{GEBCO2023}. Between 50 degrees south
+and 60 degrees north that grid rests on version 2.5.5 of the SRTM15+ compilation
+\cite{Tozer2019}, augmented with the regional multibeam data sets of the Seabed
+2030 project. Where soundings are absent the base predicts depth from satellite
+gravity through a gravity-to-topography transfer \cite{Tozer2019,Sandwell2014},
+so part of the deep-ocean grid is an interpolation rather than a measurement.
+Later releases replace that transfer with a trained neural network
+\cite{HarperSandwell2024,GEBCO2024,GEBCO2025}, which changes the character of
+the predicted nodes but not the fact that they are predicted. The accompanying type identifier grid, distributed at
+the same spacing, records which of the two each node is, and it is retained
+alongside the depths so that profiles resting largely on predicted values can be
+flagged.
+
+Three further grids supply the quantities needed to convert a raw depth section
+into a deflection and to interpret the recovered parameters. Oceanic crustal age
+is taken from the EarthByte present-day compilation of Seton et al. at
+2 arc-minute spacing \cite{Seton2020}, on the GTS2012 timescale
+\cite{Seton2020}; it fixes the thermal reference depth against which the bending
+of each profile is measured, and provides the age axis of the analysis in
+Section~\ref{sec:disc:physics} \cite{Lemenkova202112}. Total sediment thickness
+is taken from GlobSed
+at 5 arc-minute spacing \cite{Straume2019} and supports the correction that
+removes the axial fill from the observed depth, without which a well-fed trench
+would be read as less deeply bent than it is. Each grid is checked for extent,
+registration and units before any of it is read, so that a mismatch of
+convention is caught at the source rather than propagating silently into the
+deflections (Listing~\ref{lst:grids}). \begin{lstlisting}[caption={Verifying extent, registration and units of the
+three source grids before any profile is extracted. The age grid is stored on
+$-180/180$ while the traced axes are written on $0/360$; the discrepancy is
+reconciled at sampling time rather than assumed away.},label={lst:grids},language=bash]
+gmt grdinfo GEBCO_2023.nc -C | cut -f2-7   # xmin xmax ymin ymax zmin zmax
+gmt grdinfo age.2020.1.GTS2012.2m.nc       # z in Ma, gridline-registered
+gmt grdinfo GlobSed-v3.nc -C | cut -f2-5   # sediment thickness, m
+\end{lstlisting}
+
+Free-air gravity anomalies are
+taken from the satellite-altimetry compilation of the Scripps Institution of
+Oceanography at 1 arc-minute spacing \cite{Sandwell2014,CalmantBaudry1996} and
+serve as an independent expression of the same deflection at margins where the
+bathymetric grid is dominated by predicted values, following the long-standing
+practice of reading submarine basin structure from bathymetry and satellite
+gravity together
+\cite{Sandwell2014,Tozer2019,Piskarev2019Makarov,BaudryCalmant1996,LevittSandwell1995}. The coverage of the three
+over the study domain is shown in Figure~\ref{fig:datacoverage}.
+
+Three vector databases complete the input set. Plate boundary geometry follows
+the PB2002 model \cite{Bird2003} and assigns each segment a subducting and an
+overriding plate. The MORVEL angular velocities \cite{DeMets2010} then give the
+convergence rate and its obliquity at each segment; both inform the
+interpretation and neither enters the inversion. Coastlines for the map are
+drawn from the Global Self-consistent, Hierarchical, High-resolution Geography
+(GSHHG) database \cite{WesselSmith1996}, which is also the shoreline source used
+internally by the mapping software \cite{Wessel2019}. Table~\ref{tab:data} lists
+each input with its variable, native spacing, release identifier and originating
+publication. All are distributed without access restriction, and all were
+obtained in the releases stated there; persistent identifiers are given in the
+Open Research Section.
+
+The inputs differ in spacing by more than an order of magnitude, and the
+analysis is designed around that difference. At 15 arc
+seconds the bathymetric grid samples the interval between the axis and the
+outer-rise crest, typically fifty to one hundred and fifty kilometres, with one
+hundred or more nodes, so the deflection is resolved far more finely than the
+wavelength being fitted. A single cell of the sediment and age compilations, by
+contrast, spans roughly a tenth of that same interval. Those two grids are
+therefore never interpolated to profile resolution and applied node by node.
+Each is sampled once per profile, at the axis node, and the resulting value is
+held constant along that profile; age and sediment thickness are treated as
+attributes of the margin at that point rather than of the individual depth
+samples. The restriction keeps the sediment and thermal corrections from
+imposing structure at wavelengths their source grids cannot support, which would
+otherwise be absorbed into the recovered rigidity and misread as a property of
+the plate.
+
+\begin{table}\centering
+  \caption{Input data sets, with the variable each supplies, its native grid
+  spacing or vector form, the release used and the publication describing it.
+  All are open access and were obtained in the releases stated; no restricted or
+  unpublished data enter the study. Grid spacings are quoted in arc seconds and
+  arc minutes as distributed. Source: authors.}
+  \label{tab:data}
+  \small
+  \begin{tabular}{@{}llll>{\raggedright\arraybackslash}p{0.23\textwidth}@{}}
+    \toprule
+    Data set & Variable & Spacing & Release & Source \\
+    \midrule
+    GEBCO grid & Bathymetry & 15 arc-sec & GEBCO\_2023 & \citeA{GEBCO2023} \\
+    GEBCO type grid & Node type & 15 arc-sec & GEBCO\_2023 & \citeA{GEBCO2023} \\
+    SRTM15+ & Base grid of the above & 15 arc-sec & v2.5.5 & \citeA{Tozer2019} \\
+    EarthByte age grid & Crustal age & 2 arc-min & 2020.1 & \citeA{Seton2020} \\
+    GlobSed & Sediment thickness & 5 arc-min & 2019 & \citeA{Straume2019} \\
+    Marine gravity & Free-air anomaly & 1 arc-min & v33.1 & \citeA{Sandwell2014} \\
+    PB2002 & Plate boundaries & Vector & 2003 & \citeA{Bird2003} \\
+    MORVEL & Angular velocities & Vector & 2010 & \citeA{DeMets2010} \\
+    GSHHG & Shoreline polygons & Vector & v2.3.7 & \citeA{WesselSmith1996} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}\centering
+  	\includegraphics[width=0.95\textwidth]{fig_datacoverage}
+  \caption{Coverage of the auxiliary grids over the circum-Pacific
+  domain, with the traced trench axes drawn in black on every panel.
+  (a) Seafloor age; (b) sediment thickness; (c) free-air gravity anomaly.
+  Grey, land from the GSHHG shoreline database; white, nodes at which the
+  grid carries no value. All three are shown on an equidistant cylindrical
+  projection over the same region, so that coverage can be compared panel by
+  panel and any margin lacking an auxiliary value can be identified before
+  the parameterisation is run. The colour scales are perceptually uniform and
+  colour-blind safe, and the diverging scale of panel (c) is anchored on zero.
+  Software used for plotting figure: GMT \texttt{6.5.0}. Data: EarthByte
+  seafloor age, GlobSed sediment thickness, IGPP free-air anomaly. Source:
+  authors.}
+  \label{fig:datacoverage}
+\end{figure}
+
+\begin{table}\centering
+  \caption{The twenty circum-Pacific trenches, grouped by tectonic setting, with
+  the length of the automatically traced axis, the number of 148~km along-strike
+  segments into which it is partitioned, the number of bending profiles retained
+  after screening, and the mean age of the subducting plate at the axis. The
+  conventions governing each column are stated in Section~\ref{sec:studyarea}.
+  Source: authors.}\label{tab:trenches}
+  \begin{tabularx}{\textwidth}{@{}>{\hsize=1.60\hsize}L
+                                *{4}{>{\hsize=0.85\hsize}R}@{}}
+    \toprule
+    Trench & Length (km) & Segments & Profiles & Age (Ma) \\
+    \midrule
+    \multicolumn{5}{@{}l}{\textit{Northwestern and western Pacific}} \\
+    Aleutian         &  3772 &  25 & 187 &  55.7 \\
+    Kuril-Kamchatka  &  2223 &  15 & 125 & 113.6 \\
+    Japan            &   793 &   5 &  79 & 134.3 \\
+    Izu-Bonin        &  1128 &   8 &  99 & 137.9 \\
+    Mariana          &  1867 &  13 & 179 & 150.2 \\
+    Yap              &   691 &   5 &  73 & 136.8 \\
+    Palau            &   848 &   6 &  14 &  33.7 \\
+    Ryukyu           &  1125 &   8 &  66 &  69.5 \\
+    Manila           &   610 &   4 &  56 &  29.5 \\
+    Philippine       &  1634 &  11 & 150 &  72.7 \\
+    \addlinespace
+    \multicolumn{5}{@{}l}{\textit{Southwestern Pacific}} \\
+    New Britain      &   655 &   4 &  66 &  39.9 \\
+    San Cristobal    &  1386 &   9 &  59 &  38.7 \\
+    Vanuatu          &  1351 &   9 & 117 &  37.0 \\
+    Tonga            &  1126 &   8 & 111 & 100.7 \\
+    Kermadec         &  1590 &  11 & 149 & 111.1 \\
+    Hikurangi        &   716 &   5 &   6 & 128.2 \\
+    Puysegur         &   834 &   6 &  22 &  25.9 \\
+    Vityaz\textsuperscript{$\dagger$} & 1415 & 10 & 3\textsuperscript{$\ddagger$} & --- \\
+    \addlinespace
+    \multicolumn{5}{@{}l}{\textit{Eastern Pacific}} \\
+    Middle America   &  2256 &  15 & 163 &  15.5 \\
+    Peru-Chile       &  6344 &  43 & 143 &  44.5 \\
+    \midrule
+    \textit{Total}   & 32{,}364 & 220 & 1867 & \\
+    \bottomrule
+  \end{tabularx}
+
+  \vspace{2pt}
+  {\footnotesize\raggedright
+    $\dagger$ Relict trench: subduction ceased, no active plate boundary, so
+    the axis is seeded from the bathymetry rather than from PB2002. No mean
+    plate age is quoted, the age compilation returning no value at its
+    retained profiles.\par
+    $\ddagger$ Three profiles survive screening, the smallest sample of any
+    margin in the inventory.\par}
+\end{table}
+
+% =========================================================================
+\section{Methodology}\label{sec:methods}
+
+\subsection{Data Preprocessing}\label{sec:preprocessing}
+
+The trench axis is traced automatically, because a hand-digitised axis would
+reintroduce at the first step the analyst dependence the study sets out to
+remove. The subduction segments of the PB2002 model \cite{Bird2003} serve only
+as a seed that locates the margin: they are clipped to a bounding box for each
+trench, pieces shorter than forty kilometres are discarded, the remainder are
+chained by nearest endpoint without bridging any gap wider than two hundred and
+fifty kilometres, and the chained seed is resampled at ten-kilometre intervals.
+At every seed node a search profile of half-length sixty kilometres is cast
+perpendicular to the local strike and the bathymetric grid is sampled along it
+at half-kilometre steps; the deepest sample becomes the axis node. The axis
+therefore follows the bathymetry, and the published plate boundary constrains
+only where the search begins. Three margins carry no PB2002 subduction segment
+and are seeded from a short hand-digitised deep instead, after which the
+snapping step proceeds identically.
+
+Two guards protect the trace. A trench shoals gradually towards its ends, so a
+global depth cut-off deep enough to exclude a parallel back-arc depression would
+amputate those terminations; the discriminator used instead is the shape of the
+along-strike depth series, and a node lying more than two thousand metres
+shallower than the rolling median of its twenty-one neighbours is rejected as an
+isolated excursion. This is what separates the Ryukyu Trench from the Okinawa
+Trough, which runs parallel to it and lies inside any bounding box that holds
+the trench. The surviving nodes are median-filtered over twenty-five kilometres
+so that the local strike, and hence the profile azimuth, is stable. Each axis is
+then measured for path length against end-to-end distance, and a ratio above 1.6
+rejects the trace outright: arcuate margins reach 1.3 legitimately, so a higher
+ratio means the path doubles back and would extract profiles twice along the
+same margin from opposite limbs. The axis so obtained is a property of the
+bathymetric grid, not of the operator, and rerunning the routine reproduces it
+exactly (Listing~\ref{lst:axes}). The traced file is inspected before use, both
+for the number of axis records and for the path-to-chord ratio that rejects a
+doubled-back trace (Listing~\ref{lst:axischeck}).
+
+\begin{lstlisting}[caption={Inspecting the traced axes: one record per trench,
+and the along-path node count that fixes the number of profiles each margin can
+carry.},label={lst:axischeck},language=bash]
+grep -c '^>' trench_axes_full.gmt          # 20 axis records
+grep '^>' trench_axes_full.gmt | head -3   # > -L"Aleutian"
+# nodes per axis, i.e. 5 km steps along strike
+awk '/^>/{if(n)print t, n; t=$0; n=0; next}{n++}END{print t, n}' \
+    trench_axes_full.gmt
+\end{lstlisting}
+
+Bending profiles are extracted normal to the local tangent of the traced axis at
+ten-kilometre intervals along strike, each of half-length two hundred and fifty
+kilometres on either side of the axis, and each sampled at one-kilometre steps
+by bilinear interpolation of the bathymetric grid. Distances and azimuths are
+geodesic on the WGS84 ellipsoid, so a profile is perpendicular to the true local
+strike rather than to its image in a projected plane. The seaward
+half-length is set by the requirement that the profile reach essentially
+undeflected seafloor for the stiffest plates expected, since a profile
+terminating inside the flexural signal would impose a truncation of exactly the
+kind under examination; it also fixes the outer bound of the window grid swept
+in Section~\ref{sec:experiments}. The landward half is retained for display and
+for locating the axis, but enters no inversion.
+Figure~\ref{fig:profilegeometry} defines the geometry and the symbols used
+throughout.
+
+\begin{figure}\centering
+  \includegraphics[width=0.90\textwidth]{fig_profilegeometry}
+  \caption{Geometry of a bending profile and the symbols used throughout.
+  A profile is cast normal to the local tangent of the traced axis and
+  sampled at one-kilometre steps; distance $x$ is measured from the trench
+  axis and is positive seaward, and the deflection $w$ of
+  Equation~\eqref{eq:deflection} is positive downward. Marked on the section
+  are the axis itself, the outer-rise crest at distance $x_{b}$ carrying
+  amplitude $w_{b}$ above the reference depth, the reference depth $d_{r}$
+  supplied by the plate cooling model of Equation~\eqref{eq:reference}, and
+  the landward reach, which is retained for display and for locating the axis
+  but enters no inversion. The landward and seaward window limits $x_{l}$ and
+  $x_{s}$ of Equation~\eqref{eq:misfit} are indicated on the same axis, since
+  they are the quantities the sweep of Section~\ref{sec:experiments} varies.
+  Source: authors.}
+  \label{fig:profilegeometry}
+\end{figure}
+
+Profiles are screened before use, under criteria applied identically at all
+twenty margins. A profile is rejected if it crosses a seamount or fracture zone,
+identified as a residual departure from a fifty-kilometre running median
+exceeding five hundred metres over more than ten consecutive samples; if its
+seaward reach intersects land or an adjacent trench; if fewer than half of its
+nodes are flagged as measured in the type identifier grid \cite{GEBCO2023}; or
+if no outer-rise crest can be located, taken as the shallowest sample between
+twenty and two hundred kilometres seaward of the axis. The first criterion
+matters most, because a seamount superimposes a short-wavelength load on the
+bending signal and biases any fit that includes it; the third guards against
+inverting a profile that is largely a gravity-derived prediction, not a
+sounding. The criteria are applied without reference to the margin, and at every margin
+of the inventory they remove a minority of profiles. They would remove all of
+them at Cascadia, for the reason set out in Section~\ref{sec:studyarea}: a
+trench buried under its own fan fill presents neither a depth minimum to serve
+as the axis nor an outer rise to bound the fit. That is why the margin is not
+in the inventory, and the outcome is reported rather than corrected, since
+relaxing the criteria to admit it would mean fitting a bending profile to a
+surface whose relief is depositional.
+
+Two corrections convert the screened depth section into a deflection. The
+sediment fill is removed isostatically, so that the surface being fitted is the
+flexed igneous basement rather than the top of an accumulation whose thickness
+varies along the profile \cite{Sykes1996}:
+\begin{linenomath*}
+\begin{equation}
+  d_{c}(x) = d_{o}(x) + h_{s}(x)\,\frac{\rho_{m}-\rho_{s}}{\rho_{m}-\rho_{w}}
+  \label{eq:sediment}
+\end{equation}
+\end{linenomath*}
+where $d_{c}$ is the sediment-unloaded basement depth (m), $d_{o}$ the observed
+depth (m), $h_{s}$ the total sediment thickness (m) from GlobSed
+\cite{Straume2019}, and $\rho_{m}=3300$, $\rho_{s}=2300$ and
+$\rho_{w}=1030$~kg~m$^{-3}$ the densities of mantle, sediment and sea water.
+
+The second correction supplies the undeflected level from which bending is
+measured. Oceanic lithosphere subsides as it cools, so the reference depth is a
+function of plate age, not a constant, and it is taken from the GDH1
+plate cooling model \cite{SteinStein1992}, the successor to the classical
+half-space and plate fits of \citeA{ParsonsSclater1977}:
+\begin{linenomath*}
+\begin{equation}
+  d_{r}(t) =
+  \begin{cases}
+    2600 + 365\,t^{1/2}, & t < 20\;\mathrm{Ma}\\[2pt]
+    5651 - 2473\,\exp(-0.0278\,t), & t \geq 20\;\mathrm{Ma}
+  \end{cases}
+  \label{eq:reference}
+\end{equation}
+\end{linenomath*}
+where $d_{r}$ is the reference depth (m) and $t$ the crustal age (Ma) taken from
+the EarthByte grid \cite{Seton2020} as the segment mean. Age varies by less than
+the grid resolution across a single profile at every margin treated here, so one
+reference depth is applied per segment. The sampling is a single pass of
+\texttt{grdtrack} over the grid of \citeA{Seton2020}, with the longitudes brought
+onto the convention of that grid in the same command
+(Listing~\ref{lst:agesample}); no age is interpolated across a node the model
+leaves undefined, and a segment falling on such a node is carried forward with a
+missing age rather than a filled one.
+
+\begin{lstlisting}[caption={Sampling the EarthByte seafloor-age grid at the
+mid-point of each segment. \texttt{-{}-GMT\_HISTORY=false} is not optional: a
+\texttt{gmt.history} left by an earlier mapping command silently reapplies its
+region and \texttt{grdtrack} then discards every point outside it, exiting
+successfully with no output.},label={lst:agesample},language=bash]
+# lon lat of each segment midpoint, wrapped from 0/360 onto -180/180
+awk '{lon=$1; if (lon>180) lon-=360; print lon, $2}' segment_midpoints.txt |
+    gmt grdtrack -Gage.2020.1.GTS2012.2m.nc -fg --GMT_HISTORY=false \
+    > segment_ages.txt
+# how many segments fall on an undefined node of the age model
+awk '$3=="NaN" || $3==""' segment_ages.txt | wc -l
+\end{lstlisting}
+
+The deflection that both inversions fit is then the departure of the corrected
+basement from that reference,
+\begin{linenomath*}
+\begin{equation}
+  w(x) = d_{c}(x) - d_{r}
+  \label{eq:deflection}
+\end{equation}
+\end{linenomath*}
+with $w$ positive downward and $x$ the distance from the trench axis, positive
+seaward, so that $w$ is large and positive at the axis and slightly negative
+across the outer rise. Listing~\ref{lst:profiles}, in Appendix~\ref{app:code}, implements
+Equations~\eqref{eq:sediment} to \eqref{eq:deflection} together with the
+sampling and screening described above; the corrected profiles it returns are
+the sole input to both inversions, which guarantees that the two branches see
+identical data.
+
+\subsection{Methodological Framework}\label{sec:framework}
+
+Both inversions rest on the same physical model, so that any difference between
+their results is attributable to the fitting procedure and not to the mechanics
+assumed. The incoming plate is treated as a thin elastic plate of uniform
+flexural rigidity, broken at the trench axis, resting on a fluid substratum and
+loaded at its broken end by the plate boundary
+\cite{Kirby2022Flexure,Caldwell1976}. Its deflection satisfies
+\begin{linenomath*}
+\begin{equation}
+  D\,\frac{d^{4}w}{dx^{4}} + \Delta\rho\,g\,w = q(x)
+  \label{eq:flexure}
+\end{equation}
+\end{linenomath*}
+where $w$ is the deflection (m) of Equation~\eqref{eq:deflection}, $x$ the
+distance from the axis (m), $D$ the flexural rigidity (N~m),
+$\Delta\rho = \rho_{m}-\rho_{w} = 2270$~kg~m$^{-3}$ the density contrast across
+the deflected surface, $g = 9.81$~m~s$^{-2}$ the gravitational acceleration, and
+$q(x)$ the distributed vertical load (Pa). Seaward of the axis no surface load
+acts on the sediment-unloaded basement, so $q(x)=0$ there and the bending is
+driven entirely through the bending moment and shear force transmitted at the
+broken end. In-plane forces are neglected, which keeps the recovered quantity a
+single coefficient of a single ordinary differential equation; the consequences
+are assessed in Section~\ref{sec:disc:limits}.
+
+The rigidity carries the mechanical information sought, through the effective
+elastic thickness \cite{Kirby2022Isostasy}:
+\begin{linenomath*}
+\begin{equation}
+  D = \frac{E\,T_{e}^{3}}{12\left(1-\nu^{2}\right)}
+  \label{eq:rigidity}
+\end{equation}
+\end{linenomath*}
+where $E = 70$~GPa is Young's modulus, $\nu = 0.25$ Poisson's ratio and $T_{e}$
+the effective elastic thickness (m). The cubic dependence is the reason
+window-induced scatter matters: a ten per cent error in rigidity is a three per
+cent error in thickness, but the converse amplification applies to any bias in
+the fitted wavelength.
+
+That wavelength is set by the flexural parameter,
+\begin{linenomath*}
+\begin{equation}
+  \alpha = \left(\frac{4D}{\Delta\rho\,g}\right)^{1/4}
+  \label{eq:alpha}
+\end{equation}
+\end{linenomath*}
+in which $\alpha$ has units of length (m) and measures the distance over which
+the plate distributes an applied load. It is the single quantity that fixes the
+shape of the deflection: the position of the outer-rise crest and the decay
+length of the swell are both proportional to $\alpha$, while the load fixes only
+the amplitude. Recovering $T_{e}$ from a bending profile therefore amounts to
+measuring a length scale.
+
+Three further quantities follow from the same deflection and are recovered
+alongside it:
+\begin{linenomath*}
+\begin{equation}
+  M(x) = -D\,\frac{d^{2}w}{dx^{2}}, \qquad
+  V(x) = -D\,\frac{d^{3}w}{dx^{3}}, \qquad
+  \kappa(x) = \frac{d^{2}w}{dx^{2}}
+  \label{eq:derived}
+\end{equation}
+\end{linenomath*}
+where $M$ is the bending moment per unit length along strike (N), $V$ the shear
+force per unit length (N~m$^{-1}$) and $\kappa$ the curvature (m$^{-1}$). All
+three are derivatives of one function, so any method that returns a
+differentiable deflection returns them without further fitting; this is the
+property the physics-informed formulation exploits and the windowed baseline
+does not.
+
+\subsection{Baseline: Windowed Least-Squares Inversion}\label{sec:baseline}
+
+The baseline reproduces established practice rather than a weakened version of
+it, because the window experiment is intended to measure the procedure in
+general use. For a broken plate loaded at its end by a vertical
+shear force alone, Equation~\eqref{eq:flexure} with $q=0$ admits the closed-form
+solution first applied to trenches by \citeA{Caldwell1976} and used, with minor
+variants, in most subsequent profile studies
+\cite{BodineWatts1979,Tandon2000,ContrerasReyesOsses2010}:
+\begin{linenomath*}
+\begin{equation}
+  w(x) = \sqrt{2}\,w_{b}\,
+  \exp\!\left[\frac{3\pi}{4}\left(1-\frac{x}{x_{b}}\right)\right]
+  \cos\!\left(\frac{3\pi}{4}\,\frac{x}{x_{b}}\right)
+  \label{eq:caldwell}
+\end{equation}
+\end{linenomath*}
+where $w_{b}$ is the amplitude of the outer rise above the reference depth (m)
+and $x_{b}$ the distance from the axis to the outer-rise crest (m), both marked
+in Figure~\ref{fig:profilegeometry}. The two parameters separate cleanly:
+$x_{b}$ carries the length scale, through $\alpha = 4x_{b}/3\pi$, and $w_{b}$
+carries the magnitude of the end load. Inverting Equations~\eqref{eq:rigidity}
+and \eqref{eq:alpha} gives the thickness directly,
+\begin{linenomath*}
+\begin{equation}
+  T_{e} = \left[\frac{3\left(1-\nu^{2}\right)\Delta\rho\,g\,\alpha^{4}}{E}
+  \right]^{1/3}
+  \label{eq:te}
+\end{equation}
+\end{linenomath*}
+so that a fitted crest distance maps to an elastic thickness without any
+intermediate assumption. Equation~\eqref{eq:te} is used identically in both
+branches of the study, which is what makes their outputs comparable.
+
+The parameters are obtained by minimising the squared misfit between the
+observed and predicted deflection over an interval of the profile:
+\begin{linenomath*}
+\begin{equation}
+  \Phi\!\left(w_{b},x_{b}\right) =
+  \frac{1}{N_{W}}\sum_{i\,:\,x_{l}\leq x_{i}\leq x_{s}}
+  \left[w_{\mathrm{obs}}(x_{i}) - w(x_{i};w_{b},x_{b})\right]^{2}
+  \label{eq:misfit}
+\end{equation}
+\end{linenomath*}
+where $x_{l}$ and $x_{s}$ are the landward and seaward window limits (m),
+$N_{W}$ the number of samples falling between them, and $w_{\mathrm{obs}}$ the
+observed deflection. The two limits are the object of this study. They are not
+estimated, not bounded by the data and not reported with the result: they are
+constants supplied by the analyst before the minimisation begins, and every
+value of $T_{e}$ in the profile-fitting literature is conditional on a
+particular choice of them. Published choices differ in the seaward limit, in
+whether the outer-rise crest is included or excluded, and in how far landward
+the fit is allowed to approach the axis \cite{BryWhite2007,Manriquez2014}. The
+minimisation itself is carried out by Levenberg--Marquardt least squares from a
+grid of starting values, so that the recovered minimum is global within the
+searched range and no part of the spread reported later is an artefact of
+convergence.
+
+\subsection{Proposed Method: Physics-Informed Neural Inversion}\label{sec:pinn}
+
+The proposed formulation removes $x_{l}$ and $x_{s}$ from
+Equation~\eqref{eq:misfit} rather than standardising them. In place of an
+analytic solution fitted over a chosen interval, the deflection is represented
+by a neural network whose derivatives are available in closed form through
+automatic differentiation, and the governing equation is imposed as a residual
+at points distributed across the whole profile
+\cite{Raissi2019,Karniadakis2021}. The trial solution is
+\begin{linenomath*}
+\begin{equation}
+  \hat{w}(x;\theta) = w_{0}\,
+  \mathcal{N}\!\left(\frac{x}{L};\,\theta\right)
+  \label{eq:trial}
+\end{equation}
+\end{linenomath*}
+where $\mathcal{N}$ is a fully connected feed-forward network with hyperbolic
+tangent activations, $\theta$ its weights and biases, $L$ the profile length (m)
+and $w_{0}$ a fixed deflection scale (m) taken as the axial value of the
+segment. Both scales are constants, not trainable quantities; they serve only to
+present the network with inputs and targets of order unity, without which the
+fourth derivative in the residual below is numerically ill-conditioned.
+
+Because $\hat{w}$ is a composition of differentiable operations, its derivatives
+with respect to $x$ are obtained by repeated application of the chain rule
+through the computational graph, exactly and at machine precision, without
+recourse to finite differences on a sampled profile. The physics residual is therefore
+evaluable at any coordinate:
+\begin{linenomath*}
+\begin{equation}
+  \mathcal{R}(x;\theta,T_{e}) = \frac{1}{\Delta\rho\,g\,w_{0}}
+  \left[D(T_{e})\,\frac{d^{4}\hat{w}}{dx^{4}} + \Delta\rho\,g\,\hat{w}\right]
+  \label{eq:residual}
+\end{equation}
+\end{linenomath*}
+where $D(T_{e})$ is given by Equation~\eqref{eq:rigidity} and the leading factor
+renders $\mathcal{R}$ dimensionless, so that residuals from segments of
+differing amplitude are directly comparable and enter the loss on equal terms.
+The elastic thickness appears in Equation~\eqref{eq:residual} as a trainable
+coefficient of the same computational graph as $\theta$, and is recovered by the
+same gradient descent; no separate inversion loop is required.
+
+Training minimises a weighted sum of three terms,
+\begin{linenomath*}
+\begin{equation}
+  \mathcal{L}(\theta,T_{e}) = \lambda_{d}\,\mathcal{L}_{\mathrm{data}}
+  + \lambda_{p}\,\mathcal{L}_{\mathrm{phys}}
+  + \lambda_{b}\,\mathcal{L}_{\mathrm{bc}}
+  \label{eq:loss}
+\end{equation}
+\end{linenomath*}
+whose components are
+\begin{linenomath*}
+\begin{equation}
+  \mathcal{L}_{\mathrm{data}} = \frac{1}{N_{d}}\sum_{i=1}^{N_{d}}
+  \left[\frac{\hat{w}(x_{i})-w_{\mathrm{obs}}(x_{i})}{w_{0}}\right]^{2},
+  \qquad
+  \mathcal{L}_{\mathrm{phys}} = \frac{1}{N_{c}}\sum_{j=1}^{N_{c}}
+  \mathcal{R}(\xi_{j})^{2},
+  \qquad
+  \mathcal{L}_{\mathrm{bc}} =
+  \left[\frac{\hat{w}(L)}{w_{0}}\right]^{2}
+  + L^{2}\left[\frac{\hat{w}'(L)}{w_{0}}\right]^{2}
+  \label{eq:lossterms}
+\end{equation}
+\end{linenomath*}
+where $N_{d}$ is the number of sampled observations on the seaward reach,
+$N_{c}$ the number of collocation points $\xi_{j}$ drawn from the same reach,
+and $\lambda_{d}$, $\lambda_{p}$ and $\lambda_{b}$ dimensionless weights. The
+boundary term enforces the only two conditions the problem supplies without an
+analyst: that the deflection and its slope vanish in the far field. No condition
+is imposed at the axis, since the bending moment and shear force there are
+unknown; the axis enters solely as the origin of the coordinate, and it is
+located by the data through the tracing of Section~\ref{sec:preprocessing}
+rather than chosen. This is the precise sense in which the estimate is
+window-free: the only interval boundary in the formulation is the seaward end of
+the profile, which is fixed by the extraction geometry and identical at every
+segment.
+
+The three losses are minimised jointly across all segments of all twenty
+margins, with a trunk network shared by every segment and one elastic thickness
+per segment. Sharing is not a convenience. A single profile constrains a
+fourth-order equation weakly, and an unshared network is free to reproduce the
+observations with a deflection that satisfies the physics only loosely; a trunk
+common to several hundred profiles must instead represent a family of shapes
+that the governing equation admits, which acts as a regulariser that no
+per-profile fit provides. Segment identity enters through a low-dimensional
+learned embedding concatenated with the scaled coordinate, so that the shared
+trunk can express margin-to-margin differences in shape while the recovered
+thicknesses remain separate parameters and separate estimates.
+Figure~\ref{fig:architecture} shows the forward and backward paths, and
+Figure~\ref{fig:workflow} places the formulation within the whole procedure.
+Listing~\ref{lst:loss}, in Appendix~\ref{app:code}, gives the implementation of
+Equations~\eqref{eq:residual} to \eqref{eq:lossterms}.
+
+\begin{figure}\centering
+  \includegraphics[width=0.95\textwidth]{fig_architecture}
+  \caption{Architecture of the physics-informed inversion. The scaled
+  coordinate and the segment embedding enter a trunk network shared by every
+  segment, whose output is the scaled deflection $\hat{w}$ of
+  Equation~\eqref{eq:trial}. Four successive applications of automatic
+  differentiation through the same graph supply the fourth derivative
+  required by the residual of Equation~\eqref{eq:residual}, so that no finite
+  difference is taken on a sampled profile. The elastic thickness enters that
+  residual as a trainable coefficient of the same graph and is updated by the
+  same gradient step as the network weights, which is why no separate
+  inversion loop is required. Solid arrows, the forward pass; broken arrows,
+  the backward pass. Source: authors.}
+  \label{fig:architecture}
+\end{figure}
+
+\begin{figure}\centering
+  \includegraphics[width=0.95\textwidth]{fig_workflow}
+  \caption{Position of the physics-informed inversion within the whole
+  procedure. The traced axes and the extracted profiles of
+  Section~\ref{sec:preprocessing} are shared by both branches, so that the
+  windowed baseline of Section~\ref{sec:baseline} and the window-free
+  inversion of Section~\ref{sec:pinn} see identical corrected data and any
+  difference between their results is attributable to the fitting procedure
+  alone. The baseline branch carries the window limits as inputs and feeds
+  the sweep of Section~\ref{sec:experiments}; the physics-informed branch
+  carries none. Both converge on the comparison of
+  Section~\ref{sec:res:validation}. Source: authors.}
+  \label{fig:workflow}
+\end{figure}
+
+The training itself is driven by \texttt{train\_pinn.py}, whose invocation is
+given in Listing~\ref{lst:run}. Four implementation choices in it are load
+bearing and are recorded because they are not deducible from
+Equations~\eqref{eq:trial} to \eqref{eq:lossterms} and because a run that
+ignores them fails in ways that are not obvious from the loss curve. The whole
+computation is carried out in double precision: the fourth derivative of
+Equation~\eqref{eq:residual} spans some twenty-two orders of magnitude in SI
+units over a profile five hundred and fifty kilometres long, and in single
+precision the residual is dominated by rounding rather than by the physics, so
+the loss falls while the recovered thickness drifts. The activation is the
+hyperbolic tangent throughout, not for smoothness of the fitted deflection but
+because the loss differentiates the network output four times, and a piecewise
+linear activation has a second derivative that vanishes almost everywhere and
+therefore yields an identically zero physics residual, which trains to a low
+loss without ever having enforced the governing equation. The elastic thickness
+is carried as $\log_{10}(T_{e}/\mathrm{km})$ rather than as $T_{e}$, so that it
+cannot become negative under a gradient step and so that a step of fixed size is
+a fixed relative change, the thickness being a scale rather than a location
+parameter; it is bounded to $2 \leq T_{e} \leq 120$~km, the range of the
+baseline of Section~\ref{sec:baseline} expressed as a thickness. The profile
+length $L$ of Equation~\eqref{eq:trial} is one constant common to every segment,
+fixed by the extraction geometry of Section~\ref{sec:preprocessing}, and the
+deflection scale $w_{0}$ is per segment; both are constants of the graph and
+neither is trained, and $w_{0}$ cancels identically in
+Equation~\eqref{eq:residual}, so the choice affects conditioning only and not
+the recovered thickness.
+
+Four further choices concern the conditioning of the optimisation rather than
+the formulation, and each was adopted after the alternative had been shown to
+fail on the data of this study.
+
+The scaled coordinate is not presented to the network directly but is lifted
+into a set of random Fourier features, $\xi \mapsto [\sin(2\pi\mathbf{B}\xi),
+\cos(2\pi\mathbf{B}\xi)]$, with the entries of $\mathbf{B}$ drawn once from a
+zero-mean normal distribution of standard deviation $\sigma = 2$ and held fixed
+thereafter. The motivation is the spectral bias of fully connected networks with
+smooth activations, which fit the low-frequency content of a target long before
+the high-frequency content \cite{Raissi2019,Karniadakis2021}. A bending profile
+is not band-limited at low frequency: the trench wall and the outer-rise crest
+together occupy the first fifth of a domain five hundred and fifty kilometres
+long, while the remaining four fifths are nearly flat. The effect was quantified
+by fitting the deflection of one Tonga segment with the data term alone, the
+physics and boundary terms suppressed, for fifteen hundred iterations under
+otherwise identical settings (Table~\ref{tab:encoding}). The encoding reduces
+the residual by an order of magnitude, from forty to thirteen metres.
+Table~\ref{tab:encoding} also records a negative result, since the
+transformation concerned is ordinarily beneficial: recentring the coordinate to
+$[-1,1]$, which improves conditioning for targets whose structure is distributed
+across the domain, degrades the fit by a factor of twenty-five here, because it
+places the sharply curved part of the profile at the edge of the input range
+rather than at its origin. The bandwidth $\sigma$ is kept modest because the
+residual of Equation~\eqref{eq:residual} differentiates the network output four
+times, so that each retained frequency enters the physics term amplified by its
+fourth power.
+
+\begin{table}\centering
+  \caption{Effect of the coordinate encoding on the achievable data misfit.
+  One Tonga segment, the data term of Equation~\eqref{eq:lossterms} alone,
+  fifteen hundred Adam iterations, with identical architecture, initialisation
+  and learning rate in every row. The misfit is dimensionless, normalised by
+  the deflection scale $w_{0}$; the residual is the same quantity expressed as
+  a root-mean-square depth. Source: authors.}
+  \label{tab:encoding}
+  \begin{tabular}{lrr}
+    \toprule
+    Coordinate encoding & Data misfit & Residual (m) \\
+    \midrule
+    Plain coordinate, $x/L \in [0,1]$         & $7.4 \times 10^{-5}$ & 40 \\
+    Recentred coordinate, $2x/L-1 \in [-1,1]$ & $1.9 \times 10^{-3}$ & 202 \\
+    Random Fourier features, $\sigma = 2$     & $8.1 \times 10^{-6}$ & 13 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The unit of estimation is the segment, and the deflection presented to the data
+term is accordingly the pointwise median of the profiles of that segment on a
+common one-kilometre grid, rather than the profiles themselves. Presenting them
+individually imposes a lower bound on $\mathcal{L}_{\mathrm{data}}$ that no
+network can pass, because a single curve $\hat{w}(x)$ cannot reproduce several
+profiles that differ from one another; the bound is the mean square scatter of
+the profiles about their own median, which for a Tonga segment is
+$5.8 \times 10^{-4}$, of the same order as the misfit a converged fit should
+attain. The optimiser would otherwise expend its capacity on along-strike
+variability that the segment-wise formulation does not attempt to represent.
+The median is preferred to the mean because a single profile crossing a
+seamount or a fracture zone would displace the whole segment. The inter-profile
+median absolute deviation is retained alongside the fitted residual, so that the
+quality of a fit is judged against the scatter through which it passes rather
+than against zero.
+
+The second-stage refinement is evaluated on a fixed set of collocation points
+and on every segment, whereas the first stage resamples both at each iteration.
+The distinction is necessary rather than incidental. Stochastic resampling is
+appropriate to a first-order method and acts as a regulariser, in that it
+prevents the residual from being satisfied at a fixed and finite set of
+coordinates; but a quasi-Newton method constructs its curvature estimate from
+successive gradients of what it takes to be one fixed objective, and a line
+search comparing function values across a changing objective terminates at its
+first trial step. In an earlier configuration whose closure resampled, L-BFGS
+executed fourteen of the two hundred iterations permitted before exiting. The
+weights $\lambda_{d}$, $\lambda_{p}$ and $\lambda_{b}$ are frozen at the values
+reached at the stage transition for the same reason.
+
+Finally, the elastic thickness is assigned a learning rate distinct from, and
+smaller than, that of the network parameters. The thickness is a single scale
+parameter shared by every collocation point of a segment, whereas each network
+weight contributes to the output through many paths, and the gradient
+magnitudes of the two differ accordingly. Under a common rate the recovered
+thickness of a Tonga segment executed a transient excursion to approximately
+fifty-one kilometres before descending to a final value near twenty-two. The
+excursion is not a blemish on Figure~\ref{fig:convergence} alone: at those
+values the trial solution lies far from any deflection the plate equation admits
+for the observed profile, the physics residual dominates the composite, and the
+network is driven to compensate, so that iterations are expended undoing a
+displacement that a smaller rate on the thickness prevents.
+
+The dependency set is deliberately narrow. Training requires PyTorch, NumPy and
+pandas and nothing else -- no plotting stack, no geospatial library -- so it is
+installed in an environment of its own rather than beside the figure scripts.
+The separation is a reproducibility measure and not a convenience: resolving
+PyTorch into an environment that already carries the plotting and mapping stack
+pulls those packages backwards, which changes the library versions recorded in
+every figure of this paper. Training and rendering therefore run in different
+environments, communicating only through the two comma-separated files the run
+writes.
+
+\begin{lstlisting}[caption={Environment and invocation for the joint training of
+Section~\ref{sec:pinn}. The run writes a per-iteration history, the recovered
+thickness of every segment, and a record of the seed, hyperparameters and
+library versions sufficient to repeat it.},label={lst:run},language=bash]
+# a dedicated environment: torch, numpy and pandas only, so that resolving
+# PyTorch cannot downgrade the plotting stack used for the figures
+conda create -n pinn python=3.11 pytorch numpy pandas -c pytorch
+conda activate pinn
+
+cd .../scripts/essential_data_scripts
+
+# one margin first, to measure the iteration rate before committing
+python3 train_pinn.py --profiles profiles_csv --outdir runs/test \
+    --trenches tonga --adam 2000 --lbfgs 200
+
+# the run reported here: the full inventory from one seed
+python3 train_pinn.py --profiles profiles_csv --outdir runs/r02 \
+    --adam 20000 --seed 0 --collocation 128
+
+# outputs, in runs/r02:
+#   history.csv    iteration, loss_total, loss_data, loss_phys, loss_bc, te_km
+#                  components recorded UNWEIGHTED; loss_total is their plain
+#                  sum, not the weighted objective the optimiser descends
+#   segments.csv   segment, trench, te_km and the per-segment losses
+#   lambda_log.csv the adaptive weights and gradient norms at each rebalancing
+#   checkpoint.pt  trunk weights, segment embeddings and log10 T_e per segment
+#   run.json       seed, hyperparameters, stopping state, library versions
+\end{lstlisting}
+
+\subsection{Experimental Design}\label{sec:experiments}
+
+The window sweep is the primary experiment. For every retained segment the
+baseline inversion of Equation~\eqref{eq:misfit} is repeated over a regular grid
+of window limits: the landward limit $x_{l}$ takes eleven values from zero to
+fifty kilometres seaward of the axis in five-kilometre steps, and the seaward
+limit $x_{s}$ takes forty-eight values from eighty to five hundred and fifty
+kilometres in ten-kilometre steps. The upper limit is the seaward reach of the
+extracted profiles, so the grid spans every window the data admit. Of the five
+hundred and twenty-eight combinations, four hundred and ninety-eight are
+retained; the remainder are rejected by a single admissibility rule, that a
+window must span at least eighty kilometres,
+\begin{linenomath*}
+\begin{equation}
+  x_{s} - x_{l} \geq L_{\min}, \qquad L_{\min} = 80~\mathrm{km}
+  \label{eq:minspan}
+\end{equation}
+\end{linenomath*}
+because a shorter interval carries too few independent samples of the bending
+wavelength to determine both $w_{b}$ and $x_{b}$ of Equation~\eqref{eq:misfit};
+attempting it returns a formally converged fit whose flexural parameter is set
+by the starting value rather than by the data. The rule is stated here because
+it is the only constraint imposed on the sweep, and because it accounts for the
+one systematic gap in the sensitivity surfaces described below. The grid is
+chosen to contain the window conventions found in the published profile studies
+rather than to bracket them symmetrically, so that the resulting spread is the
+spread a reader of that literature would encounter. Every inversion in the sweep
+uses the same profile, the same corrections and the same minimiser; the window
+limits are the only quantity that varies. Algorithm~\ref{alg:sweep} states the
+procedure.
+
+Two further conditions are applied to the output of each inversion rather than
+to its input, and both discard rather than repair. A fit whose flexural
+parameter terminates on either bound of its admissible interval, $15 \leq \alpha
+\leq 200$~km, has been stopped by the optimiser and not by the data, and is
+recorded as missing; retaining such fits populates the surfaces with the two
+thicknesses that correspond to the bounds themselves and inflates
+$\Delta_{w}$ severalfold without any of it deriving from the bathymetry.
+A fit whose root-mean-square residual exceeds $1.2$~km is likewise discarded,
+the profile in that window being no longer describable by
+Equation~\eqref{eq:deflection} to within the amplitude of the feature being
+fitted. Both rejections are reported per segment with the sweep.
+
+The behaviour of the baseline over the window plane is best seen before it is
+reduced to a single number, and Figure~\ref{fig:windowmethod} shows it for four
+margins. Each panel is the surface $T_{e}(x_{l}, x_{s})$ obtained by evaluating
+the baseline at every admissible point of the grid on one profile, so the panel
+is a direct portrait of the estimator: its horizontal axis is the seaward limit,
+its vertical axis the landward limit, and its colour the thickness returned.
+Read along the bottom edge, at a landward limit of zero, the panel reproduces the
+one-dimensional sweep of Figure~\ref{fig:windowproblem}; the second axis extends
+that sweep to the choice most studies leave unstated, namely how much of the
+inner trench wall is admitted. The colour levels are spaced geometrically because the distribution of
+recovered thickness is strongly right-skewed, and a linear spacing compresses
+the plateau that occupies most of each panel into a single tint. The red
+isoline drawn at the window-free estimate traces exactly the set of window
+choices under which the classical method reproduces the window-free answer;
+where it is absent, no admissible window reproduces that value. The blank wedge
+at the left of every panel is not missing data but the region excluded by
+Equation~\eqref{eq:minspan}, $x_{s} < x_{l} + 80$~km, whose boundary is the
+diagonal running from $(80, 0)$ to $(130, 50)$, and the seaward axis begins at
+$L_{\min}$ for the same reason. Three features recur on every margin and are
+described here because they, and not any individual value, are what the
+experiment is designed to expose. A narrow ridge of large recovered thickness
+occupies the smallest seaward limits, where the window closes inside the
+outer-rise crest and the fit compensates by lengthening the flexural wavelength.
+A gradient in the opposite sense runs up the vertical axis, the recovered
+thickness falling as more of the inner wall is excluded and the fitted section
+is displaced seaward of the deflection maximum. Between them lies a broad
+plateau, reached beyond roughly three hundred kilometres, on which the estimate
+is stable to within a few per cent. That the plateau exists is not a defence of
+the windowed method: the plateau of one margin does not coincide with the
+plateau of another, none of the window conventions in the literature falls
+inside all of them, and nothing internal to a single windowed inversion
+identifies which part of its own surface is the plateau.
+
+The four margins of Figure~\ref{fig:windowmethod} are not a random sample and
+are not presented as one. They were selected purposively, before any surface was
+computed, to span the three properties that control the shape of a bending
+profile, so that a feature common to all four cannot be attributed to any one of
+them. Plate age at the axis ranges from $40$ to $155$~Ma across the set --
+Peru--Chile $40$~Ma, Aleutian $52$~Ma, Tonga $91$~Ma, Mariana $155$~Ma -- which
+covers the thermal range of the whole inventory. Axial sediment thickness ranges
+from $38$ to $597$~m, from the starved Tonga axis to the fed Aleutian, so the
+correction of Section~\ref{sec:preprocessing} enters at very different
+magnitudes. Axial depth ranges from $6.3$ to $10.3$~km, and the tectonic setting
+spans intra-oceanic and continental margins and both orthogonal and strongly
+oblique convergence. A single profile is used in each panel, not a segment
+average, because the object being characterised is the estimator applied to one
+section of bathymetry; averaging is introduced only in
+Section~\ref{sec:res:window}, where the question changes from how the estimator
+behaves to how much the margins differ.
+
+The physics-informed neural network is trained once on all segments jointly.
+Collocation points are drawn uniformly on the seaward reach and resampled at
+every iteration, so that no fixed set of interior points can be fitted at the
+expense of the rest of the profile. Optimisation proceeds in two stages: Adam
+\cite{KingmaBa2015} with an initial learning rate of $3\times10^{-3}$ on the
+network parameters and $10^{-3}$ on the elastic thickness, halved on decay,
+followed by L-BFGS \cite{LiuNocedal1989} to convergence, a
+sequence that is standard for this class of problem because first-order descent
+locates the basin efficiently and the quasi-Newton stage resolves the residual
+to a level finite-difference schemes cannot reach. The loss weights are set by
+the gradient-norm balancing scheme of \citeA{Wang2021grad}, applied every one
+hundred iterations, which prevents the data term from dominating the physics
+term early in training. Training stops when the composite loss has not improved
+by more than one part in $10^{4}$ over two thousand iterations.
+Algorithm~\ref{alg:joint} gives the training loop, and
+Table~\ref{tab:hyperparams} lists the searched ranges together with the retained
+configuration.
+
+All computation is in Python \texttt{3.12.13}. The networks and the automatic
+differentiation are implemented in PyTorch \texttt{2.13.0}, run under Python
+\texttt{3.11.15} in the separate training environment described below; array
+handling uses NumPy \texttt{2.4.6} \cite{Harris2020}, tabulation uses pandas
+\texttt{3.0.5},
+and the baseline minimisation uses the Levenberg--Marquardt implementation of
+SciPy \texttt{1.18.0} \cite{Virtanen2020}. Axis tracing, profile extraction and
+all cartography use GMT \texttt{6.5.0} \cite{Wessel2019}, driven from shell
+scripts rather than from a Python interface so that each map is a single
+auditable command sequence, and diagnostic plots and schematics use Matplotlib
+\texttt{3.11.1} \cite{Hunter2007}. Every run is seeded from a fixed value recorded with the code,
+and the full environment specification, including operating system and pinned
+library versions, is deposited alongside it so that the reported numbers can be
+regenerated exactly.
+
+\begin{figure}\centering
+  \includegraphics[width=0.95\textwidth]{fig_ws_viridis}
+  \caption{Behaviour of the windowed baseline over the plane of both window
+  limits, for four margins spanning the range of the controlling variables.
+  Each panel is the elastic thickness returned by the baseline inversion of
+  Equation~\eqref{eq:misfit} applied to a single profile, evaluated at every
+  admissible point of the sweep grid: the seaward limit $x_{s}$ horizontally and
+  the landward limit $x_{l}$ vertically, both measured from the trench axis.
+  \textbf{(a)} Mariana, plate age $155$~Ma, axial sediment $127$~m;
+  \textbf{(b)} Peru--Chile, $40$~Ma, $161$~m; \textbf{(c)} Tonga, $91$~Ma,
+  $38$~m; \textbf{(d)} Aleutian, $52$~Ma, $597$~m. Colour is the recovered
+  thickness on a common scale across all four panels, with levels spaced
+  geometrically so that equal colour steps correspond to equal ratios. White
+  curves are isolines of recovered thickness, labelled in kilometres, and white
+  circles the window choices adopted by previous profile studies. The red curve
+  is the isoline at the window-free estimate returned by the physics-informed
+  inversion for the same profile. The blank wedge at the left of every panel is
+  the region excluded by Equation~\eqref{eq:minspan}. Panel annotations give
+  $\Delta_{w}$ of Equation~\eqref{eq:windowmetric} for that profile. Software
+  used for plotting figure: Python \texttt{3.12.13}, Matplotlib
+  \texttt{3.11.1}, SciPy \texttt{1.18.0}, NumPy \texttt{2.4.6}. Data: GEBCO,
+  GlobSed. Source: authors.}
+  \label{fig:windowmethod}
+\end{figure}
+
+\begin{algorithm}
+\caption{Window-sweep sensitivity experiment. The baseline inversion is repeated
+over a regular grid of window limits and the recovered elastic thickness is
+recorded for every combination.}\label{alg:sweep}
+\begin{algorithmic}[1]
+  \Require corrected profiles $\{x_i, w_i\}$ for every segment $s$
+  \Require window grids $\mathcal{X}_l$, $\mathcal{X}_s$
+  \Ensure sensitivity surface $T_e(s, x_l, x_s)$ and metric $\Delta_w(s)$
+  \For{each segment $s$}
+    \For{each $x_l \in \mathcal{X}_l$ and each $x_s \in \mathcal{X}_s$}
+      \State select the samples with $x_l \leq x_i \leq x_s$
+      \State minimise $\Phi(w_b, x_b)$ of Eq.~\eqref{eq:misfit} from a grid of
+             starting values
+      \State $\alpha \gets 4x_b/3\pi$; obtain $T_e$ from Eq.~\eqref{eq:te}
+      \State store $T_e(s, x_l, x_s)$ and the misfit at the minimum
+    \EndFor
+    \State $\Delta_w(s) \gets$ Eq.~\eqref{eq:windowmetric} over the stored set
+  \EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}
+\caption{Joint physics-informed training across all segments, with a shared
+trunk network and one elastic thickness per segment.}\label{alg:joint}
+\begin{algorithmic}[1]
+  \Require corrected profiles for all segments; scales $w_0(s)$, $L$
+  \Ensure trained trunk $\theta$ and per-segment $\{T_e(s)\}$
+  \State initialise $\theta$, the segment embeddings, and $T_e(s)$ at a common
+         starting value
+  \While{the stopping criterion is not met}
+    \State draw a batch of segments and, for each, resample $N_c$ collocation
+           points on the seaward reach
+    \State evaluate $\hat{w}$ and, by automatic differentiation, its fourth
+           derivative
+    \State form $\mathcal{L}_{\mathrm{data}}$, $\mathcal{L}_{\mathrm{phys}}$ and
+           $\mathcal{L}_{\mathrm{bc}}$ of Eq.~\eqref{eq:lossterms}
+    \If{the iteration is a rebalancing step}
+      \State update $\lambda_d$, $\lambda_p$, $\lambda_b$ from the gradient norms
+    \EndIf
+    \State update $\theta$ and $\{T_e(s)\}$ on $\nabla\mathcal{L}$
+  \EndWhile
+  \State refine with L-BFGS until convergence
+  \State evaluate $M$, $V$ and $\kappa$ from Eq.~\eqref{eq:derived} on the
+         trained solution
+\end{algorithmic}
+\end{algorithm}
+
+\begin{table}\centering
+  \caption{Hyper-parameters of the physics-informed inversion, with the range
+  considered and the configuration retained. The ranges record the values
+  examined while the method was developed; they were not swept systematically
+  under the final configuration, and the consequence is entered in
+  Table~\ref{tab:limitations}. The loss weights are set adaptively
+  during training and their entry gives the initialisation. Where an iteration
+  budget was not exhausted, the permitted and the executed count are both
+  given. Source: authors.}\label{tab:hyperparams}
+  \begin{tabular}{lll}
+    \toprule
+    Hyper-parameter & Search range & Retained \\
+    \midrule
+    Hidden layers & 3 to 8 & 5 \\
+    Units per layer & 32 to 256 & 64 \\
+    Activation & tanh, sine, softplus & tanh \\
+    Fourier features, bandwidth $\sigma$ & 8 to 64, 1 to 8 & 16, 2.0 \\
+    Embedding dimension & 2 to 16 & 4 \\
+    Collocation points per segment & 128 to 2048 & 128 \\
+    Segments per batch & 8 to all & 16 \\
+    Learning rate, network & $10^{-4}$ to $10^{-2}$ & $3\times10^{-3}$ \\
+    Learning rate, thickness & $10^{-4}$ to $10^{-2}$ & $10^{-3}$ \\
+    Learning-rate decay factor & 0.1 to 0.9 & 0.5 \\
+    Loss weights $\lambda_d:\lambda_p:\lambda_b$ & adaptive & $1:1:1$ initial \\
+    Rebalancing interval (iterations) & 50 to 500 & 100 \\
+    Adam iterations & $5\times10^{3}$ to $5\times10^{4}$ & $2\times10^{4}$ permitted, 4186 used \\
+    L-BFGS iterations & 100 to 500 & 300 permitted, 316 recorded \\
+    Patience, tolerance & --- & 2000 iterations, $10^{-4}$ \\
+    Ensemble members & 5 to 50 & 1 (see Table~\ref{tab:limitations}) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Cartographic Mapping}\label{sec:mapping}
+
+Every map in this study is produced by script from the open-access grids, with
+no interactive editing, so that the cartography is reproducible on the same
+terms as the inversion \cite{Wessel2019,Piskarev2019Lomonosov,Lemenkova202213}. The circum-Pacific
+panels use an equidistant cylindrical projection centred on the date line, which
+keeps the twenty margins on one sheet and preserves along-strike distance, the
+quantity the segment bands encode. The base is shaded relief computed from the
+bathymetric grid with illumination from the northwest at a fixed elevation, and
+the shading is applied as an intensity layer beneath the data colours so that
+relief and value remain separable to the eye.
+
+Recovered parameters are rendered as coloured bands drawn along the traced axis,
+one band per segment, at a width chosen so that adjacent segments remain
+distinguishable at the reproduction size \cite{Lemenkova202017}. Discrete rather than continuous colour
+steps are used for the elastic-thickness maps, because a reader comparing
+margins needs to place a segment in a class, not to read an exact value from a
+ramp. All colour scales are perceptually uniform and readable under the
+common forms of colour-vision deficiency, and the diverging scales are anchored
+on zero \cite{Crameri2020}; the sequential scales survive greyscale
+reproduction, which is checked by converting each figure to luminance before it
+is accepted.
+
+The bands are produced by a join between two files that are stored separately,
+because the geometry and the recovered values are computed at different stages
+of the pipeline and share only the segment identity. The traced axes are held
+as a GMT multisegment file with one record per trench, each headed by the
+trench name and resampled to a common along-strike step, so that a single file
+carries the geometry of all twenty margins (Listing~\ref{lst:axesfile}):
+\begin{lstlisting}[caption={Structure of the traced-axis file: one
+multisegment record per trench, headed by the trench name.},label={lst:axesfile},language=bash]
+head -20 trench_axes_full.gmt   # > -L"Aleutian" then longitude latitude, 5 km
+grep -c '^>' trench_axes_full.gmt   # 20: one axis record per trench
+\end{lstlisting}
+The recovered parameters are held per segment, several segments to a trench,
+keyed by an identifier of the form \texttt{<trench>\_<nn>} that is numbered in
+along-strike order. The number of segments varies by margin with the length of
+the arc, and each segment carries an along-strike bin index in the \texttt{zone}
+column, which confirms that the segments partition the axis into contiguous
+equal-length bins rather than overlapping or leaving gaps
+(Listing~\ref{lst:zones}):
+\begin{lstlisting}[caption={Recovering the segment-to-trench mapping and the
+along-strike bin index from the per-segment tables.},label={lst:zones},language=bash]
+# segments per trench, in along-strike order (aleutian_01, _02, ...)
+cut -d, -f1 segment_flexure.csv | sed 's/_[0-9]*$//' | sort | uniq -c
+# the zone column gives each segment its along-axis bin
+head -3 segment_zones.csv   # segment,trench,zone,w_b,Te,mdot,mmax,...
+\end{lstlisting}
+The merge therefore reads each trench axis, divides its node list into as many
+contiguous equal runs as the trench has segments, and rewrites the header of
+run $k$ to carry the recovered value of segment $k$ as a GMT $-Z$ attribute,
+which \texttt{psxy} then maps to colour through the discrete palette. The output
+is one multisegment file per mapped quantity, in which the geometry and the
+value can no longer fall out of step because they are written together; the same
+routine emits the elastic-thickness file and, by naming a different value
+column, the bending-moment, shear, curvature and uncertainty files of
+Figure~\ref{fig:parametermaps}. Longitudes are shifted to the nought-to-three-
+hundred-and-sixty-degree convention in the same pass so that the bands cross the
+date line without a seam. Naming a different value column is the whole of the
+difference between the thickness map and its residual companion
+(Listing~\ref{lst:resmap}), which is what allows the two sheets to be compared
+band for band. Listing~\ref{lst:map} gives the rendering routine that
+consumes the joined file.
+
+\begin{lstlisting}[caption={Emitting a second mapped quantity from the same
+join. Because both files inherit one partition of one axis file, band $k$ of the
+residual map covers exactly the stretch of margin that band $k$ of the thickness
+map covers.},label={lst:resmap},language=bash]
+python3 build_te_segments.py --axes trench_axes_full.gmt \
+    --values runs/r02/segments.csv --value te_km   --out te_segments.gmt
+python3 build_te_segments.py --axes trench_axes_full.gmt \
+    --values runs/r02/segments.csv --value loss_phys --out residual_segments.gmt
+# the two files must agree band for band
+grep -c '^>' te_segments.gmt residual_segments.gmt
+\end{lstlisting}
+
+\begin{lstlisting}[caption={The core of the routine rendering segment-wise
+flexural parameters onto the circum-Pacific relief base map. The bands are
+coloured by the per-segment value carried in each multisegment header, so the
+geometry and the value cannot be separated.},label={lst:map},language=bash]
+# shaded relief base, hinged palette, land masked
+gmt grdcut "${RELIEF}" -R"${REG}" -Grelief.nc
+gmt grdgradient relief.nc -A315 -Ne0.5 -Gshade.nc
+gmt makecpt -Coleron -T-8000/6000 > relief.cpt
+
+gmt begin fig_parametermaps pdf,png
+  gmt subplot begin 2x2 -Fs8.1c/5.68c -M0.45c/1.35c -A"a)"+jTL \
+                        -R"${REG}" -JQ8.1c
+    gmt subplot set 0
+      gmt grdimage relief.nc -Crelief.cpt -Ishade.nc -t30
+      gmt coast -Ggray75 -Wthinnest,gray45 -Dl -A5000
+      gmt basemap -Bxg60 -Byg30 -B+n          # graticule under the bands
+      gmt plot m.gmt -Cm.cpt -W2.6p+cl        # +cl: colour by header -Z value
+      gmt basemap -Bxa60f30 -Bya30f15 -BWeSN+t"Bending moment at the axis"
+      gmt colorbar -Cm.cpt -DJBC+w6.6c/0.20c+h+o0/0.55c+e \
+                   -Bx+l"M (10@+16@+ N)"
+    # panels 1 to 3 repeat with v.gmt, k.gmt and d.gmt
+  gmt subplot end
+gmt end
+\end{lstlisting}
+
+\subsection{Validation and Performance Assessment}\label{sec:validation}
+
+Validation proceeds on three tiers, each answering a different objection. The
+first is recovery of a known answer: synthetic profiles are generated from
+Equation~\eqref{eq:caldwell} for prescribed values of $T_{e}$ spanning the range
+expected at the twenty margins, degraded with Gaussian noise at amplitudes
+matched to the residual scatter of the observed profiles, and inverted by the
+physics-informed formulation without disclosing the generating parameters.
+Success is measured by the relative error in recovered thickness and by the root
+mean square error between recovered and prescribed deflection. Because the
+synthetic profiles are noise-free in their physics, this tier isolates the
+performance of the estimator from any inadequacy of the elastic model.
+
+The second tier is comparison with the windowed baseline on the observed
+profiles. Both branches are applied to identical corrected profiles, and
+agreement is assessed against the whole swept window population rather than
+against a single privileged window, since the purpose is to establish where the
+window-free estimate falls within the range the conventional method can produce.
+The metrics are the root mean square error and mean absolute error of the fitted
+deflection, the coefficient of determination, and the dimensionless physics
+residual of Equation~\eqref{eq:residual}, which the baseline does not minimise
+and which therefore measures how far each fitted profile departs from the
+governing equation away from the fitted interval.
+
+The third tier is comparison with independent published determinations at the
+same margins, obtained by other data and other methods, including spectral
+admittance and three-dimensional treatments. Agreement here cannot be exact,
+because the published values are themselves conditional on window choices and on
+differing physical assumptions, and a perfect match would be evidence of
+circularity rather than of accuracy. The comparison is therefore read as a
+consistency check on the order of magnitude and on the ranking of margins, and
+it is reported with the span of the windowed baseline shown alongside, so that
+a discrepancy can be judged against what the procedure alone can generate.
+These metrics are reported in Section~\ref{sec:res:validation}.
+
+\subsection{Statistical Analysis and Uncertainty Assessment}\label{sec:uncertainty}
+
+Uncertainty in the recovered parameters is estimated by ensemble. The joint
+training is repeated with independently initialised weights, independently drawn
+collocation sequences and independently shuffled segment batches, and the
+dispersion of the recovered thickness across ensemble members is taken as its
+uncertainty. This captures the components that dominate for this class of
+estimator, namely sensitivity to initialisation and to the stochastic sampling
+of the physics constraint, without the cost of full posterior inference
+\cite{Psaros2023}. The derived quantities of Equation~\eqref{eq:derived} are
+evaluated separately within each member and summarised by the same statistics,
+so that their uncertainties inherit the correlation structure of the ensemble
+instead of being propagated through an assumed linearisation. Uncertainty
+arising from the input grids is treated separately, by repeating the inversion
+with the sediment and reference-depth corrections perturbed within the
+tolerances quoted by their providers.
+
+The window dependence of the baseline is quantified by a single metric, defined
+here because it is a contribution of this study rather than a reported result.
+For each segment $s$, over the set $\mathcal{W}$ of swept windows,
+\begin{linenomath*}
+\begin{equation}
+  \Delta_{w}(s) = \frac{\max_{W\in\mathcal{W}} T_{e}(s,W)
+  - \min_{W\in\mathcal{W}} T_{e}(s,W)}
+  {\operatorname{median}_{W\in\mathcal{W}} T_{e}(s,W)}
+  \label{eq:windowmetric}
+\end{equation}
+\end{linenomath*}
+where $T_{e}(s,W)$ is the thickness recovered from segment $s$ under window $W$.
+The metric is dimensionless, so segments of differing strength are directly
+comparable, and it is normalised by the median, not the mean, so that a
+few windows that place the fit across the outer-rise crest cannot inflate the
+denominator. Its interpretation is exact: $\Delta_{w}$ is the fraction of the
+typical recovered thickness that is attributable to nothing but the analyst's
+choice of interval, evaluated on a fixed profile with fixed physics. Geological
+variation cannot enter it, because every term in Equation~\eqref{eq:windowmetric}
+is computed from the same segment. The interquartile range of the same
+population is reported alongside it as a robust counterpart, insensitive to the
+extremes of the swept grid.
+
+% =========================================================================
+\section{Results}\label{sec:results}
+
+\subsection{Profile Inventory and Data Quality}\label{sec:res:quality}
+The extraction of Section~\ref{sec:preprocessing} yields one thousand eight
+hundred and sixty-seven profiles that pass every screening criterion, cast at
+five-kilometre spacing along the traced axes and each sampled at one-kilometre
+intervals from one hundred and fifty kilometres landward of the axis to five
+hundred and fifty kilometres seaward. The largest samples come from the longest
+arcs -- one hundred and eighty-seven profiles at the Aleutian, one hundred and
+seventy-nine at the Mariana, one hundred and sixty-three at Middle America and
+one hundred and fifty at the Philippine -- and the smallest from the shortest,
+with fourteen at Palau and six at Hikurangi; the per-margin counts are given in
+Table~\ref{tab:trenches}. Grouped into the along-strike segments of the same
+table, the sample supports one hundred and thirty-seven segments that carry a
+flexural estimate, fewer than the partition of the axis lengths admits, because
+a segment left empty by screening is dropped rather than filled. Of the retained
+profiles, one thousand seven hundred and four exhibit a resolvable outer-rise
+crest and one hundred and sixty-three do not, the latter concentrated on the
+sediment-fed margins where the rise is onlapped; both classes are retained,
+since the inversion of Section~\ref{sec:pinn} requires no feature to be picked.
+Plate age is unavailable at one hundred and seventy-one profiles, all of them
+within the polygons the age model leaves undefined near continental margins and
+young spreading centres, and those profiles are excluded from the age
+relation of Section~\ref{sec:res:parameters} but from nothing else.
+(Table~\ref{tab:trenches}). The retained sample covers every margin of the
+inventory. Cascadia is not among them: its trench is buried beneath its fan
+fill and yields no traceable axis, and it is therefore excluded from the
+inventory itself rather than carried through it as an empty row, as set out in
+Sections~\ref{sec:studyarea} and \ref{sec:preprocessing}.
+
+The inversion reported below is trained on a subset of that inventory, and the
+reduction from one to the other is read directly off the two tables rather than
+asserted (Listing~\ref{lst:inventory}). Of the
+segments carrying a flexural estimate, seventy-one enter the run, drawn from
+twenty margins, because the per-segment profile cap of
+Section~\ref{sec:preprocessing} admits at most eight profiles to the stack and
+segments whose screened profiles fall below the minimum are not stacked at all.
+Five hundred and fifty-three profiles are stacked in total, sixty-five of the
+seventy-one segments receiving the full complement of eight and the remainder
+between three and seven (Listing~\ref{lst:stacks}). Stacking yields 38{,}627 median-profile samples on the
+common one-kilometre grid, a median of 544 nodes per segment over the
+550~km seaward reach. The deflection scale $w_{0}$ of the stacked profiles has
+a median of 2712~m across the segments and spans 694 to 6440~m; the shortfall
+below the cap falls on the margins whose traced axis is shortest.
+
+\begin{lstlisting}[caption={Reading the segment inventory off the two
+per-segment tables. The first count is the full set carrying a flexural
+estimate; the second is the subset that enters the neural
+inversion.},label={lst:inventory},language=bash]
+tail -n +2 segment_flexure.csv | wc -l       # 137 segments with an estimate
+tail -n +2 runs/r02/segments.csv | wc -l     # 71 segments in the run
+grep -c '^>' te_segments.gmt                 # 71 mapped bands, one per segment
+cut -d, -f2 runs/r02/segments.csv | tail -n +2 | sort -u | wc -l   # 20 margins
+# segments per margin, most-populated first
+cut -d, -f2 runs/r02/segments.csv | tail -n +2 | sort | uniq -c | sort -rn
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Profiles stacked per segment, and the node count of
+the stacked deflections. The cap of eight profiles per segment is visible as
+the mode of the first distribution.},label={lst:stacks},language=bash]
+# distribution of profiles per stacked segment
+cut -d, -f3 runs/r02/segments.csv | tail -n +2 | sort -n | uniq -c
+# total stacked profiles, and median-profile samples on the 1 km grid
+awk -F, 'NR>1{s+=$3} END{print s, "profiles stacked"}' runs/r02/segments.csv
+tail -n +2 runs/r02/deflection.csv | wc -l   # 38627 samples
+\end{lstlisting}
+
+\subsection{Magnitude of the Window Dependence}\label{sec:res:window}
+The baseline of Section~\ref{sec:baseline}, implemented in
+Listing~\ref{lst:baseline}, was first evaluated at a single
+window of the kind an analyst supplies before the minimisation begins, the
+landward limit at the axis and the seaward limit at 250~km, and the resulting
+fits are shown for one section of each margin in
+Figure~\ref{fig:baselinefits}. The fitted curves follow the
+observed sections closely: the residual remains within about one kilometre over
+the fitted interval on the majority of the twenty panels, and departs from that
+band only where a feature the elastic model does not represent crosses the
+section, at the seamount on the Japan section near 100~km, over the seaward half
+of the Palau and Yap sections, and on the San Cristobal section landward of the
+outer-rise crest. The thicknesses recovered from these fits nevertheless span
+4~km at Hikurangi and Puysegur to 113~km at Manila, a factor of twenty-eight
+about a median of 14~km, with fifteen of the twenty margins below 20~km and the
+remaining five --- Ryukyu, Mariana, Yap, Vanuatu and Manila --- between 39 and
+113~km. Compared against the window-free column of
+Table~\ref{tab:windowspread}, and allowing that the panels carry one section
+rather than the margin as a whole, fourteen of the twenty agree to within a
+factor of two, those same five exceed the window-free estimate by factors of
+three to seven, and Hikurangi falls an order of magnitude below it. Goodness of
+fit therefore does not separate the two groups, and nothing internal to a single
+windowed inversion distinguishes a thickness of 13~km from one of 113~km.
+
+\begin{figure}\centering
+  	\includegraphics[width=0.98\textwidth]{fig_baselinefits}
+  \caption{Classical windowed least-squares fits to one bathymetric section from
+  each of the twenty circum-Pacific margins, all at the same window: the
+  landward limit at the trench axis and the seaward limit at 250~km. One panel
+  per margin, labelled with the margin name and with the effective elastic
+  thickness $T_{e}$ recovered from that section. Within a panel the grey line is
+  the observed section, plotted as depth below sea level and positive downward;
+  the broken vertical line marks the trench axis at zero distance; the open
+  circle marks the outer-rise crest; and the red line is the analytical
+  deflection of Equation~\eqref{eq:caldwell} fitted by minimising
+  Equation~\eqref{eq:misfit}, drawn over the fitted window alone and returned to
+  the depth axis by restoring the reference depth of
+  Equation~\eqref{eq:reference}. The narrow strip beneath each panel gives the
+  residual between observation and fit in blue, on a vertical scale common to
+  all twenty panels so that misfit can be compared across margins. Distance is
+  measured from the trench axis, positive seaward. Software used for plotting
+  figure: Python \texttt{3.12.13}, Matplotlib \texttt{3.11.1}, SciPy
+  \texttt{1.18.0}, NumPy \texttt{2.4.6}. Data: GEBCO bathymetry. Source:
+  authors.}
+  \label{fig:baselinefits}
+\end{figure}
+
+The sweep of Section~\ref{sec:experiments} was run on every retained segment of
+all twenty margins, and Figure~\ref{fig:windowsensitivity} presents the
+resulting sensitivity surfaces, one panel per trench. Each panel aggregates the
+individual profile surfaces of that margin by taking, at every point of the
+window grid, the median of the thicknesses recovered from the sampled profiles;
+the panel is therefore a property of the margin rather than of any profile
+chosen to represent it, and the arbitrariness of that choice, which
+Figure~\ref{fig:windowmethod} is subject to by construction, is removed. Colour
+is the recovered thickness normalised by the median of the same panel, so that
+margins whose absolute thickness differs by a factor of five remain comparable
+as sensitivity surfaces and the colour axis carries the quantity that
+Equation~\eqref{eq:windowmetric} measures. The scale is geometric rather than
+linear, which places a doubling and a halving of the thickness equally far from
+the neutral colour. The three features identified in
+Section~\ref{sec:experiments} are present on every margin, which establishes
+that the window dependence is a property of the estimator and not of any
+particular section of seafloor.
+
+Three conventions govern the panels. The blank wedge at the left of each is the
+region excluded by Equation~\eqref{eq:minspan}, within which no window spans
+the eighty kilometres the fit requires; blank regions elsewhere, at Palau,
+Manila, Middle America and Hikurangi, are windows at which no sampled profile
+of that margin returned an admissible fit, and are therefore an absence of data
+rather than of colour. The surfaces are resampled by bicubic spline for
+legibility, and every number reported below is computed on the unsmoothed grid.
+The annotated $\Delta_{w}$ is evaluated on the median surface and is for that
+reason systematically smaller than the per-profile values of
+Table~\ref{tab:windowspread}, since taking the median across profiles before
+taking the range suppresses the variation the metric is intended to capture;
+the two are not interchangeable, and the tabulated per-profile population
+is the one that supports the aggregate reported below.
+
+Swept over the full grid of window limits, the recovered thickness at a single
+margin varies by a factor that is large everywhere and extreme on the least
+constrained arcs. Measured per profile, the window-induced spread
+$\Delta_{w}$ of Equation~\eqref{eq:windowmetric} ranges from $1.34$ at
+Kuril--Kamchatka to $7.26$ at Vityaz, with a median of $3.02$ across the twenty
+margins; that is, the median margin returns a largest windowed thickness some
+three times its smallest, and at the extreme the ratio exceeds seven. Seventeen
+of the twenty margins exceed a factor of two and ten exceed a factor of three,
+so a thickness quoted without its window is uncertain by more than the
+between-margin differences the parameter is used to interpret. The values are
+tabulated by margin in Table~\ref{tab:windowspread} and shown as sensitivity
+surfaces in Figure~\ref{fig:windowsensitivity}; the surfaces carry the
+per-window-median $\Delta_{w}$, which for the reason given above is
+systematically smaller than the per-profile figure, spanning $0.42$ at Mariana
+to $6.39$ at Vityaz with a median of $1.16$
+(Figure~\ref{fig:windowsensitivity}, Table~\ref{tab:windowspread}).
+
+The spread is greatest where the sample is smallest, so it must be read against
+the length of the arc before it is taken as a property of the margin alone. The
+five largest values fall on the shortest and most thinly sampled trenches ---
+Vityaz ($\Delta_{w}=7.26$, three profiles available), Palau ($5.75$, fourteen),
+Manila ($4.39$, fifty-six), Puysegur ($4.38$, twenty-two) and Philippine
+($3.88$) --- and across the twenty margins $\Delta_{w}$ correlates negatively
+with the number of profiles available ($r=-0.55$). Part of the spread at the
+short arcs is therefore sampling noise rather than genuine window sensitivity,
+and the aggregate figure above is correspondingly weighted towards the
+well-sampled majority, at which $\Delta_{w}$ nonetheless remains above two.
+
+The dependence is also visible directly, without aggregating into a surface, by
+sweeping one limit at a time and watching the population of recovered
+thicknesses move with it (Figure~\ref{fig:windowspread}). Advancing the seaward
+limit from 80 to 540~km lifts the median recovered thickness across all 428
+profiles from 10.6 to 15.3~km, a drift of 45~per cent produced by nothing but
+the choice of where to stop fitting, and the interquartile spread among
+profiles widens over the same interval from 76 to 155~per cent of the median.
+The landward limit acts over a far shorter lever with a comparable effect, the
+median rising from 13.6 to 17.1~km as the limit retreats 50~km from the axis.
+Margins differ in how strongly they respond: at Vityaz the spread stays between
+25 and 31~per cent of the median at every setting, whereas at Puysegur the
+median itself swings between 5.9 and 13.3~km and the spread reaches 209~per
+cent. In every panel the interval-free estimate of Section~\ref{sec:pinn} lies
+below the windowed population at all settings, a systematic offset returned to
+in Section~\ref{sec:disc:limits}.
+
+\begin{figure}\centering
+  \includegraphics[width=0.98\textwidth]{fig_windowspread}
+  \caption{The window dependence swept one limit at a time, from 72{,}452
+  windowed inversions of 428 profiles at twenty margins. Panels (a) and (b)
+  pool every margin and sweep the seaward and the landward limit respectively;
+  panels (c) and (d) sweep the seaward limit at the least and the most
+  window-sensitive margin, selected by the smallest and largest interquartile
+  spread over windows whose seaward limit is at least 200~km rather than by
+  inspection. In every panel the purple curve is the median recovered
+  thickness over the profiles contributing at that window setting, on the left
+  axis, and the shaded band its interquartile range; the orange broken curve is
+  that interquartile range expressed as a percentage of the median at the same
+  setting, on the right axis, and is the quantity
+  Equation~\eqref{eq:windowmetric} formalises. The broken vertical line marks a
+  conventional seaward limit of 250~km, or the axis for the landward sweep. The
+  dotted horizontal line is the interval-free estimate of
+  Section~\ref{sec:pinn}, which has no window and therefore no position on the
+  abscissa. Software used for plotting figure: Python \texttt{3.12.13},
+  Matplotlib \texttt{3.11.1}, NumPy. Source: authors.}
+  \label{fig:windowspread}
+\end{figure}
+
+The same sweep resolved by margin rather than by window limit shows how
+unevenly the sensitivity is distributed across the belt
+(Figure~\ref{fig:trenchbox}). Each box is the interquartile range of the
+windowed thickness at one margin, pooled over every admissible window with a
+seaward limit of at least 200~km, so the height of the box is the window
+sensitivity of that margin and the line within it the value an analyst would
+most often report. The margins are ordered by median, and the spread of box
+heights is large: the interquartile range is a median of 88~per cent of the
+margin's own thickness, but it falls to 29~per cent at Vityaz, where the
+windowed estimate is nearly stable, and rises to 187~per cent at Puysegur,
+where it is barely defined. The interval-free estimate lies at or below the
+lower quartile of almost every box, the same offset seen in the pooled sweep.
+
+The sensitivity is not organised geographically. Grouping the margins into
+northern, north-western, western, south-western and eastern sectors of the
+basin leaves the median sensitivity between 72 and 105~per cent in every
+sector, with the tall and the short boxes intermixed within each: the
+south-western group alone contains both the least sensitive margin, Vityaz, and
+some of the most sensitive, Puysegur and New Britain. Nor does the sensitivity
+track the recovered thickness or the length of the arc; across the twenty
+margins the interquartile spread is uncorrelated with the median thickness
+($r = 0.00$) and only weakly related to the number of windows available
+($r = 0.14$). What the box height does follow is the morphology of the
+individual margin, the width and clarity of its outer rise and the presence or
+absence of features that a fixed window includes or excludes as its limits
+move, which is a property of each trench's bathymetry rather than of its
+position in the basin or its tectonic setting. The window sensitivity is
+therefore an artefact of the estimator meeting a particular seafloor shape, not
+a signal with a regional structure, which is the reason it cannot be reasoned
+away by restricting the study to one sector or one class of margin.
+
+\begin{figure}\centering
+  \includegraphics[width=0.98\textwidth]{fig_trenchbox}
+  \caption{Window sensitivity of the classical estimator, one box per margin,
+  from the same sweep as Figure~\ref{fig:windowspread}. For each margin the box
+  spans the interquartile range of the effective elastic thickness recovered by
+  windowed least squares over every admissible window with a seaward limit of
+  at least 200~km, the line within the box is the median, and the whiskers span
+  the 5th to 95th percentiles; outliers beyond the whiskers are omitted. The
+  height of a box is thus the window sensitivity of that margin: a tall box is a
+  margin whose recovered thickness depends strongly on the fitting interval, a
+  short box one that is robust to it. Margins are ordered by median thickness
+  and coloured across a spectral scale for identification. The dashed line is
+  the interval-free estimate of Section~\ref{sec:pinn}, which has no window and
+  lies at or below the lower quartile of almost every margin. These are windowed
+  \emph{baseline} thicknesses, characterising the classical estimator, not the
+  recovered thicknesses of the neural inversion, which are tabulated per margin
+  in Table~\ref{tab:tebytrench}. Software used for plotting figure: Python
+  \texttt{3.12.13}, Matplotlib \texttt{3.11.1}, NumPy. Source: authors.}
+  \label{fig:trenchbox}
+\end{figure}
+
+\begin{figure}\centering
+  \includegraphics[width=0.98\textwidth]{fig_windowsensitivity}
+  \caption{Dependence of the recovered effective elastic thickness on both
+  window limits, for each of the twenty circum-Pacific margins, panels (a) to
+  (t). Axes are as in Figure~\ref{fig:windowmethod}: the seaward window limit
+  $x_{s}$ horizontally and the landward limit $x_{l}$ vertically, both in
+  kilometres from the trench axis. Each panel is the per-window median over the
+  profiles sampled at even spacing along that margin, the sample size being
+  given with each panel as $n$ of the profiles available. Colour is the
+  recovered thickness divided by the median of the same panel, on a geometric
+  scale spanning one octave either side of unity; windows falling outside that
+  octave are shown at the ends of the scale. Isolines are drawn at fixed ratios
+  and labelled. Blank areas carry no admissible fit. Panel annotations give
+  $\Delta_{w}$ of Equation~\eqref{eq:windowmetric} evaluated on the median
+  surface, together with the number of profiles entering that surface and the
+  number available at the margin; every profile that returns an admissible fit
+  is used, so the surfaces involve no subsampling. Software used for plotting figure: Python \texttt{3.12.13},
+  Matplotlib \texttt{3.11.1}, SciPy \texttt{1.18.0}, NumPy \texttt{2.4.6}.
+  Data: GEBCO, GlobSed. Source: authors.}
+  \label{fig:windowsensitivity}
+\end{figure}
+
+\begin{table}\centering
+  \caption{Window-induced spread in recovered effective elastic thickness, by
+  trench. The minimum, maximum and interquartile range of $T_{e}$ (km) are
+  taken over the pooled admissible windowed fits of the sampled profiles; the
+  minimum and maximum approach the bounds of the admissible interval on most
+  margins, so the interquartile range is the informative measure of scale. The
+  metric $\Delta_{w}$ of Equation~\eqref{eq:windowmetric} is the per-profile
+  median, dimensionless. The final column is the window-free physics-informed
+  estimate (km) for comparison. Source: authors.}
+  \label{tab:windowspread}
+  \begin{tabular}{lrrrrr}
+    \toprule
+    Trench & $T_e$ min & $T_e$ max & $T_e$ IQR & $\Delta_{w}$ & Window-free \\
+    \midrule
+    Aleutian         &    4 &  111 &    8 &  1.88 & 9 \\
+    Kuril--Kamchatka &    4 &  111 &    6 &  1.34 & 8 \\
+    Japan            &    4 &  109 &   10 &  2.16 & 10 \\
+    Izu--Bonin       &    4 &  110 &    8 &  2.13 & 11 \\
+    Mariana          &    4 &  111 &   20 &  2.87 & 10 \\
+    Yap              &    4 &  106 &   11 &  2.36 & 9 \\
+    Palau            &    4 &  111 &    9 &  5.75 & 9 \\
+    Ryukyu           &    4 &  111 &   33 &  2.58 & 6 \\
+    Manila           &    4 &  105 &    6 &  4.39 & 27 \\
+    Philippine       &    4 &  111 &   15 &  3.88 & 9 \\
+    New Britain      &    4 &  111 &   45 &  1.87 & 23 \\
+    San Cristobal    &    4 &  111 &   29 &  3.17 & 10 \\
+    Vityaz           &    4 &  105 &    4 &  7.26 & 9 \\
+    Vanuatu          &    4 &  111 &   43 &  2.11 & 21 \\
+    Tonga            &    4 &  110 &   13 &  3.36 & 10 \\
+    Kermadec         &    4 &  107 &   17 &  2.56 & 10 \\
+    Hikurangi        &    4 &   58 &    9 &  3.73 & 67 \\
+    Puysegur         &    4 &  110 &   13 &  4.38 & 5 \\
+    Middle America   &    4 &  111 &    8 &  3.21 & 8 \\
+    Peru--Chile      &    4 &  108 &   12 &  3.67 & 9 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Convergence and Fitted Bending Profiles}\label{sec:res:fits}
+The configuration of Table~\ref{tab:hyperparams} carries 19{,}428 trainable
+parameters: 19{,}073 in the trunk, 284 in the segment embeddings and one
+thickness for each of the seventy-one segments, the sixteen Fourier frequencies
+being drawn once and held fixed. The joint training was run once over all
+seventy-one segments from the fixed seed on a single processor, and completed
+4502 iterations in 13{,}809~s, three hours and fifty minutes, at an average of
+3.07~s per iteration. The first stage
+terminated at iteration 4186 of the twenty thousand permitted, on the criterion
+of Section~\ref{sec:experiments}: the composite loss had not improved by more
+than one part in $10^{4}$ over the preceding two thousand iterations. Its
+running median over two hundred iterations reached $3.3\times10^{-2}$ by
+iteration 2000 and stood at $3.8\times10^{-2}$ at the transition, so the budget
+consumed after the plateau is the patience window itself. The second stage
+recorded a further 316 iterations before exiting on its own convergence test.
+The training loop itself is given in Listing~\ref{lst:train} and the ensemble
+procedure in Listing~\ref{lst:ensemble}, both in Appendix~\ref{app:code}.
+Both stage boundaries and the final loss split are read from the iteration log
+rather than from the console output of the run (Listing~\ref{lst:history}).
+
+\begin{lstlisting}[caption={Reading the convergence record. The stage switch and
+the stopping criterion are recorded in \texttt{run.json}; the per-iteration
+budget comes from the elapsed time divided by the row count of the
+history.},label={lst:history},language=bash]
+head -1 runs/r02/history.csv    # iteration,loss_total,loss_data,loss_phys,loss_bc,te_km
+tail -1 runs/r02/history.csv    # final iteration and its loss split
+tail -n +2 runs/r02/history.csv | wc -l          # 4502 iterations
+grep -E 'stage_switch|stop_reason|elapsed_s' runs/r02/run.json
+\end{lstlisting}
+
+The three loss terms fall by unequal amounts and at different stages
+(Figure~\ref{fig:convergence}a). Over the whole run the data term falls from
+$8.3\times10^{-2}$ to $2.0\times10^{-2}$, a factor of 4.2; the physics term from
+$2.2\times10^{-2}$ to $1.5\times10^{-2}$; and the boundary term from
+$7.7\times10^{-3}$ to $3.3\times10^{-5}$, a factor of 234. The quasi-Newton stage
+accounts for a disproportionate share of the last two: across its 316
+iterations the physics term falls by 19.7 per cent and the boundary term by
+83.2 per cent, while the data term changes by 0.33 per cent. The refinement
+therefore acts on satisfaction of the governing equation and of the seaward
+conditions rather than on the fit to the bathymetry, which the first stage has
+already resolved. Single-iteration values of the composite carry the sampling
+noise of the first stage, whose batch is sixteen segments and whose collocation
+points are redrawn at every step; over the final thousand first-stage
+iterations the composite has a relative standard deviation of 32 per cent about
+its own mean, and its smallest recorded value, $1.07\times10^{-2}$ at iteration
+2185, is one such fluctuation and not a minimum the run departs from. The
+composite recorded in the history is the unweighted sum of the three terms and
+is not the objective descended, which carries the adaptive weights.
+
+Those weights separate the terms by more than an order of magnitude
+(Table~\ref{tab:lambdas}). Gradient-norm balancing raises $\lambda_{d}$ from
+1.01 at the first rebalancing step to 3.29 at the last and $\lambda_{b}$ from
+1.96 to 46.33, the latter reaching its imposed ceiling of 50 at five of the
+forty-one steps, while $\lambda_{p}$ remains at unity to within
+$8.8\times10^{-4}$ throughout. The values frozen at the stage transition are
+$\lambda_{d} = 3.295$, $\lambda_{p} = 1.000$ and $\lambda_{b} = 46.334$.
+
+The elastic thickness of the tracked segment descends monotonically from the
+common initial value of 25.0~km, through 14.4~km at iteration 1000 and 8.2~km
+at iteration 3000, to 7.06~km at the stage transition, and settles at 7.37~km
+(Figure~\ref{fig:convergence}b). Over the final hundred iterations it varies
+between 7.10 and 7.37~km, a range of 3.7 per cent of the converged value.
+
+The recovered deflection reproduces the stacked profiles to a median
+root-mean-square residual of 126~m, with an interquartile range of 84 to 228~m,
+against a median deflection scale of 2712~m; the normalised data misfit of
+Equation~\eqref{eq:lossterms} is the square of that ratio and has a median of
+$3.0\times10^{-3}$. Forty-seven of the seventy-one segments fall below 150~m and
+twenty-five below 100~m, the best fit being 40~m at an Aleutian segment and the
+worst 749~m at New Britain. The residual is smaller than the inter-profile
+median absolute deviation on thirty-seven of the seventy-one segments, and the
+two are equal at the median, their ratio being 0.99, so that the fits reach the
+scatter of the profiles about their own median rather than passing below it
+(Figure~\ref{fig:profilefits}). The same twenty margins under the windowed
+baseline at its 250~km window are shown in Figure~\ref{fig:baselinefits}.
+
+\begin{table}\centering
+  \caption{Adaptive loss weights of Equation~\eqref{eq:loss} at the first and
+  last rebalancing step of the first stage, and the values frozen at the stage
+  transition and held through the quasi-Newton refinement. Weights are
+  dimensionless. The interval between steps is one hundred iterations, giving
+  forty-one steps over the 4186 iterations of the first stage. Source:
+  authors.}
+  \label{tab:lambdas}
+  \begin{tabular}{lrrr}
+    \toprule
+    Weight & Step 1 (iter. 100) & Step 41 (iter. 4100) & Frozen \\
+    \midrule
+    $\lambda_{d}$, data     &  1.01 &  3.29 &  3.295 \\
+    $\lambda_{p}$, physics  &  1.00 &  1.00 &  1.000 \\
+    $\lambda_{b}$, boundary &  1.96 & 46.33 & 46.334 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}\centering
+  \includegraphics[width=0.90\textwidth]{fig_convergence}
+  \caption{Convergence of the joint physics-informed training over all
+  seventy-one segments. Both panels share the iteration axis, and the broken
+  vertical line marks the transition from Adam to L-BFGS at iteration 4186,
+  labelled above the frame. \textbf{(a)} the composite loss $\mathcal{L}$ of
+  Equation~\eqref{eq:loss}, solid black, and its three components as recorded,
+  before weighting: the data term $\mathcal{L}_{\mathrm{data}}$ broken, the
+  physics term $\mathcal{L}_{\mathrm{phys}}$ dash-dotted and the boundary term
+  $\mathcal{L}_{\mathrm{bc}}$ dotted, on a logarithmic scale; all four are
+  dimensionless. \textbf{(b)} the elastic thickness recovered for one Aleutian
+  segment, initialised at 25~km in common with every segment, with the
+  horizontal broken line at the converged value of 7.37~km. Line style
+  distinguishes the components independently of colour, so both panels survive
+  greyscale reproduction. Software used for plotting figure: Python
+  \texttt{3.12.13}, Matplotlib \texttt{3.11.1}, NumPy \texttt{2.4.6}. Source:
+  authors.}
+  \label{fig:convergence}
+\end{figure}
+
+\begin{figure}\centering
+  	\includegraphics[width=0.98\textwidth]{fig_profilefits}
+  \caption{Observed and recovered bending profiles for one representative
+  segment of each of the twenty trenches, one panel per trench and each
+  labelled with the trench name. Within a panel, grey circles are the corrected
+  deflection of Equation~\eqref{eq:deflection}, sampled at one kilometre; the
+  solid line is the deflection recovered by the physics-informed inversion; the
+  open circle marks the outer-rise crest. The narrow strip beneath each panel
+  shows the residual between the two on a common vertical scale, so misfit can
+  be compared across trenches. Depth is positive downward and distance is
+  measured from the trench axis, positive seaward. Software used for plotting
+  figure: Python \texttt{3.12.13}, Matplotlib \texttt{3.11.1}. Data: GEBCO
+  bathymetry, GlobSed sediment thickness, EarthByte seafloor age. Source:
+  authors.}
+  \label{fig:profilefits}
+\end{figure}
+
+\subsection{Recovered Flexural Parameters}\label{sec:res:parameters}
+Across the seventy-one segments the window-free effective elastic thickness has
+a median of 9.4~km and an interquartile range of 8.1 to 10.7~km, within a full
+range of 4.0 to 67.0~km (Figure~\ref{fig:temap},
+Table~\ref{tab:tebytrench}). Half of the population therefore occupies a band
+2.7~km wide, and the outer decades of the range are carried by few segments:
+the fifth and ninety-fifth percentiles are 5.4 and 26.0~km. The smallest value
+is 4.0~km at a Kuril-Kamchatka segment and the largest 67.0~km at the single
+Hikurangi segment, with Puysegur, Yap and Middle America also returning values
+below 5~km. The quartiles and the extremes quoted here are computed from the
+recovered column of the run table, not from the rounded values of
+Table~\ref{tab:tebytrench} (Listing~\ref{lst:tedist}).
+
+\begin{lstlisting}[caption={The recovered thickness distribution, computed from
+the run table. Sorting numerically before taking the quantiles matters: the
+column is right-skewed and a lexical sort would place 9.4 after
+67.0.},label={lst:tedist},language=bash]
+# median, quartiles and extremes of te_km over the 71 segments
+cut -d, -f6 runs/r02/segments.csv | tail -n +2 | sort -g |
+    awk '{v[NR]=$1} END{printf "min %.1f  Q1 %.1f  med %.1f  Q3 %.1f  max %.1f\n",
+          v[1], v[int(NR*0.25)], v[int(NR*0.5)], v[int(NR*0.75)], v[NR]}'
+# margins whose median exceeds 20 km
+awk -F, 'NR>1{s[$2]=s[$2]" "$6} END{for(t in s) print t, s[t]}' \
+    runs/r02/segments.csv | sort
+\end{lstlisting}
+
+Between margins the medians span a factor of fourteen, from 4.8~km at Puysegur
+to 67.0~km at Hikurangi. Four margins carry a single segment and therefore have
+no along-strike range, their tabulated entries repeating. The margins represented by four or more segments
+are confined to a much narrower interval, 7.5~km at Kuril-Kamchatka to 20.6~km
+at Vanuatu, and eleven of the twenty have medians between 7.5 and 10.6~km.
+Within a margin the along-strike spread is smallest where the sample is largest
+and the arc is uniform: Japan varies by 0.4~km over three segments and
+Peru-Chile by 1.3~km over five, whereas Mariana spans 6.6 to 19.6~km over six
+and Kuril-Kamchatka 4.0 to 13.1~km over five.
+
+The largest thicknesses coincide with the poorest fits. The six segments
+exceeding 20~km carry a median root-mean-square residual of 472~m against 113~m
+for the remaining sixty-five, and the rank correlation between recovered
+thickness and residual over all segments is 0.31. Restricting the population to
+the forty-seven segments whose residual falls below 150~m, which span thirteen
+margins, leaves the median at 9.3~km and the interquartile range at 7.9 to
+10.1~km, and reduces the full range to 4.0 to 18.0~km: the upper extreme of the
+unrestricted distribution is contributed entirely by segments the elastic model
+fits poorly.
+
+Over the 47 segments retained by the residual screen the bending moment at the
+axis has a median of $6.1\times10^{15}$~N (interquartile range
+$2.5\times10^{15}$ to $1.3\times10^{16}$), the shear force a median of
+$8.5\times10^{11}$~N\,m$^{-1}$ ($6.1\times10^{11}$ to $1.4\times10^{12}$), and
+the maximum curvature along the profile a median of
+$1.6\times10^{-6}$~m$^{-1}$ ($1.1\times10^{-6}$ to $2.2\times10^{-6}$). The
+curvature maximum falls within 31~km of the axis on every segment, at the
+trench wall where the plate is most sharply bent, so the extremum is a property
+of the recovered bending and not of the seaward end of the domain. All three
+follow from the trained solution by Equation~\eqref{eq:derived} in a single
+evaluation pass, without refitting
+
+\begin{figure}\centering
+  	\includegraphics[width=0.98\textwidth]{fig_temap}
+  \caption{Window-free effective elastic thickness of the subducting plate at
+  the twenty circum-Pacific trenches. Each 148 kilometre segment is drawn as a
+  coloured band along the traced axis, on shaded bathymetric relief, with plate
+  boundaries in broken black. The colour scale is discrete, perceptually
+  uniform and colour-blind safe, so that a segment is placed in a class rather
+  than read from a continuous ramp, and it survives greyscale reproduction.
+  Segments rejected by the profile screening carry no band. Software used for
+  plotting figure: GMT \texttt{6.5.0}. Data: GEBCO
+  bathymetry, PB2002 plate boundaries. Source: authors.}
+  \label{fig:temap}
+\end{figure}
+
+\begin{table}\centering
+  \caption{Window-free effective elastic thickness by trench, from the joint
+  inversion of Section~\ref{sec:pinn}. Segments is the number entering the
+  inversion; median, minimum and maximum are taken over those segments, and the
+  residual is the median root-mean-square misfit to the stacked profile.
+  Thicknesses in kilometres, residuals in metres. Source: authors.}
+  \label{tab:tebytrench}
+  \begin{tabular}{lrrrrr}
+    \toprule
+    Trench & Segments & Median & Min & Max & Residual \\
+    \midrule
+    \multicolumn{6}{l}{\textit{Northwestern and western Pacific}} \\
+    Aleutian         &  7 &   8.8 &   7.4 &  18.0 &  79 \\
+    Kuril-Kamchatka  &  5 &   7.5 &   4.0 &  13.1 & 104 \\
+    Japan            &  3 &  10.1 &   9.8 &  10.2 &  98 \\
+    Izu-Bonin        &  4 &  10.6 &   9.6 &  11.8 & 103 \\
+    Mariana          &  6 &   9.8 &   6.6 &  19.6 & 156 \\
+    Yap              &  3 &   8.6 &   4.4 &  11.9 & 234 \\
+    Palau            &  1 &   8.6 &   8.6 &   8.6 & 144 \\
+    Ryukyu           &  3 &   6.4 &   5.9 &   7.7 & 126 \\
+    Manila           &  2 &  27.4 &   6.6 &  48.2 & 456 \\
+    Philippine       &  5 &   8.7 &   7.8 &  11.2 & 109 \\
+    \midrule
+    \multicolumn{6}{l}{\textit{Southwestern Pacific}} \\
+    New Britain      &  3 &  22.6 &  18.4 &  29.8 & 507 \\
+    San Cristobal    &  2 &   9.9 &   8.7 &  11.1 & 230 \\
+    Vanuatu          &  4 &  20.6 &  10.2 &  27.6 & 334 \\
+    Vityaz           &  1 &   8.8 &   8.8 &   8.8 & 415 \\
+    Tonga            &  4 &  10.3 &   9.1 &  10.7 & 106 \\
+    Kermadec         &  5 &  10.1 &   7.4 &  12.7 & 102 \\
+    Hikurangi        &  1 &  67.0 &  67.0 &  67.0 & 329 \\
+    Puysegur         &  1 &   4.8 &   4.8 &   4.8 & 106 \\
+    \midrule
+    \multicolumn{6}{l}{\textit{Eastern Pacific}} \\
+    Middle America   &  6 &   7.8 &   4.9 &  10.9 &  74 \\
+    Peru-Chile       &  5 &   9.3 &   8.6 &  10.0 &  96 \\
+    \midrule
+    \textit{All segments} & 71 &   9.4 &   4.0 &  67.0 & 126 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}\centering
+  \includegraphics[width=0.98\textwidth]{fig_parametermaps}
+  \caption{The remaining recovered flexural parameters, over the same
+  circum-Pacific base as Figure~\ref{fig:temap} and drawn as coloured
+  along-strike bands so that the four fields can be compared segment by
+  segment. \textbf{(a)} bending moment at the axis, in units of $10^{16}$~N;
+  \textbf{(b)} shear force at the axis, in units of $10^{12}$~N~m$^{-1}$;
+  \textbf{(c)} maximum curvature along the profile, in units of
+  $10^{-7}$~m$^{-1}$; \textbf{(d)} the deflection scale at the axis, $w_{b}$,
+  in metres, which is the amplitude the other three carry and is shown so that
+  their along-strike pattern can be read against it. Panels (a) to (c) follow
+  Equation~\eqref{eq:derived} and are evaluated on the same differentiable
+  solution as the thickness, over all seventy-one segments of the run. Each
+  panel carries its own scale, the quantities having different dimensions and
+  different signs: the shear is negative at every segment and the moment and
+  curvature change sign along strike, so a band at the pale end of a scale is
+  not a small value but a value near the limit stated on that bar. Bathymetry
+  is shaded relief from the GEBCO\_2023 Grid. Software used for plotting
+  figure: GMT \texttt{6.5.0}. Source: authors.}
+  \label{fig:parametermaps}
+\end{figure}
+
+\subsection{Validation and the Windowed Baseline}\label{sec:res:validation}
+On the observed profiles the inversion attains a median root-mean-square
+deflection error of 126~m and a median normalised data misfit of
+$3.0\times10^{-3}$, against a median physics residual of $5.8\times10^{-3}$ and a
+median boundary residual of $9.0\times10^{-8}$ (Table~\ref{tab:metrics}). The
+boundary term is thus satisfied to five orders of magnitude below the two terms
+that compete, and the residual budget at convergence is divided between the fit
+to the bathymetry and the governing equation in the ratio one to two. The
+recovered solution accounts for a median 92 per cent of the variance of the
+stacked deflection within a segment, with an interquartile range of 87 to 95
+per cent; the weakest segment retains 48 per cent and no segment falls below
+the variance of its own mean, so the fit is nowhere worse than uninformative.
+
+The recovered thicknesses may also be read against the windowed baseline of
+Section~\ref{sec:baseline} applied to the same profiles. Over the windows an
+analyst would defend, with a seaward limit of at least 200~km, the baseline
+returns a median thickness of 15~km with an interquartile range of 8 to 27~km
+across the swept grid, against the interval-free median of 9.4~km recovered
+here. The two distributions overlap but the interval-free estimate sits at the
+lower edge of the windowed population, an offset examined in
+Section~\ref{sec:disc:limits}; what the comparison establishes is not that one
+value is correct but that a single windowed number, quoted without its window,
+carries the 40~per cent spread of Figure~\ref{fig:windowspread}, whereas the
+interval-free estimate carries none. A comparison against independent published
+determinations is deferred: a like-for-like table would require each source to
+be reduced to the same margins and the same definition of the fitted quantity,
+which is beyond the scope of this methodological study.
+
+\begin{table}\centering
+  \caption{Fit metrics for the physics-informed inversion on the observed
+  profiles, with the recovered and the windowed-baseline thickness for
+  comparison. Deflection errors in metres, the coefficient of determination and
+  the residuals dimensionless, thicknesses in kilometres. Each fit metric is
+  the median over the 71 segments, the coefficient of determination computed per
+  segment against that segment's own mean deflection before the median is taken.
+  The baseline thickness is the median and interquartile range of the windowed
+  least-squares estimate over the swept grid with a seaward limit of at least
+  200~km. Source: authors.}
+  \label{tab:metrics}
+  \begin{tabular}{lr}
+    \toprule
+    Metric & Observed profiles \\
+    \midrule
+    Deflection error, median (m)      & 126 \\
+    Deflection error, IQR (m)         & 84--228 \\
+    Normalised data misfit, median    & $3.0\times10^{-3}$ \\
+    Physics residual, median          & $5.8\times10^{-3}$ \\
+    Boundary residual, median         & $9.0\times10^{-8}$ \\
+    Coefficient of determination      & 0.92 \\
+    \midrule
+    Recovered thickness, median (km)  & 9.4 \\
+    Baseline thickness, median (km)   & 15 \\
+    Baseline thickness, IQR (km)      & 8--27 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Reduction of the Recovered Thickness Against Bending}\label{sec:res:yielding}
+The recovered thickness is an effective quantity: bending at a trench drives the
+outer fibres of the plate past the yield envelope, so the section that continues
+to behave elastically is thinner than the mechanical plate
+\cite{GoetzeEvans1979,WattsBurov2003}. That reduction is the quantity of
+interest, and the joint formulation permits it to be tested against its supposed
+cause without appeal to an external model. The curvature is recovered from the
+same differentiable solution as the thickness (Equation~\eqref{eq:derived}), so
+the degree of reduction and the bending that is supposed to produce it are
+measured on one profile, at one place, by one inversion.
+
+The reduction is expressed as the ratio of the recovered thickness to the depth
+of the 600~\textdegree C isotherm at that segment's plate age, the isotherm
+conventionally taken as the base of the mechanical lithosphere. A ratio near
+unity is a plate bending elastically through its full mechanical thickness; a
+ratio well below unity is a plate that has yielded through part of its section.
+Figure~\ref{fig:yielding} plots that ratio against the maximum curvature
+recovered along each segment. Both quantities come from the run of
+Section~\ref{sec:pinn} and neither is imported: the isotherm depth follows from
+the age of Section~\ref{sec:datamaterials}, and the curvature from
+Equation~\eqref{eq:derived}. Where the elastic description fits the observed
+bending poorly the ratio is not interpretable as a degree of yielding, and the
+margins at which that happens are mapped in Figure~\ref{fig:residualmap}.
+
+Across the 47 retained segments the recovered thickness is a median of 21~per
+cent of the depth to the 600~\textdegree C isotherm, with an interquartile
+range of 18 to 30~per cent. The reduction is therefore large and, within this
+sample, nearly uniform: regressing the ratio on the logarithm of the curvature
+gives a slope of $-0.23$ per decade, in the expected sense that more sharply
+bent segments retain a smaller elastic fraction, but the relation accounts for
+8~per cent of the scatter and a rank correlation of $-0.26$ does not reach
+significance at this sample size ($p = 0.08$). The evidence is thus for a
+pervasive reduction rather than one modulated segment by segment by the local
+bending, which is consistent with the near-uniformity of the recovered
+thickness itself (Section~\ref{sec:res:parameters}). Three segments return a ratio
+above unity, which is not physically admissible for a purely thermal plate;
+these are Hikurangi, Manila and San Cristobal, all among the poorly fitted
+segments the residual screen removes, so the non-physical values arise where
+the elastic description fails rather than where it holds.
+
+\begin{figure}\centering
+  	\includegraphics[width=0.92\textwidth]{fig_yielding}
+  \caption{Reduction of the recovered elastic thickness against the bending
+  that produces it. Vertical axis, the ratio of the window-free thickness to the
+  depth of the 600~\textdegree C isotherm at that segment's plate age, so unity,
+  marked by the dashed line, is a plate bending elastically through its full
+  mechanical thickness. Horizontal axis, the maximum curvature along the
+  segment on a logarithmic scale, recovered from the same solution by
+  Equation~\eqref{eq:derived}. One marker per segment, coloured by trench; open
+  markers are segments whose root-mean-square deflection error exceeds 150~m,
+  drawn for completeness but excluded from every statistic, as in
+  Figure~\ref{fig:teage}. The solid blue line is the median ratio over the
+  retained segments and the blue band its interquartile range; these summarise
+  the population and are the primary result, since a near-constant ratio is
+  what the figure shows. The purple diamonds are the median ratio in four
+  equal-count bins of curvature, a guide to any monotone drift rather than a
+  tested relation. The red line is the least-squares fit on $\log_{10}\kappa$
+  and the red band its 95~per cent confidence interval; the band straddles the
+  horizontal median across the whole range, which is the visual statement that
+  the slope is not distinguishable from zero. The axis is capped just above
+  unity to fill the panel with the populated range; three segments lie above
+  the cap and are marked by arrows at the top with their values and names,
+  Hikurangi, Manila and San Cristobal, all poorly fitted, drawn hollow, and
+  excluded from the fit and the median. A ratio above unity is not physically
+  admissible for a thermal plate, so these arise where the elastic description
+  fails rather than where it holds. Both quantities are recovered by the
+  inversion of Section~\ref{sec:pinn}, so the reduction is regressed on the
+  bending without recourse to an external thermal or rheological model.
+  Software used for plotting figure: Python \texttt{3.12.13}, Matplotlib
+  \texttt{3.11.1}, SciPy, NumPy. Source: authors.}
+  \label{fig:yielding}
+\end{figure}
+
+\begin{figure}\centering
+  	\includegraphics[width=0.95\textwidth]{fig_residualmap}
+  \caption{Spatial distribution of the physics residual of
+  Equation~\eqref{eq:residual} after training, drawn segment by segment over
+  the same circum-Pacific base as Figure~\ref{fig:temap}. The residual is
+  dimensionless, so segments of differing bending amplitude are directly
+  comparable. High values identify margins at which a plate of uniform rigidity
+  cannot reproduce the observed bending, and are therefore a diagnostic of
+  model inadequacy and not of estimator failure; the windowed baseline returns
+  no comparable quantity. Software used for plotting figure: GMT
+  \texttt{6.5.0}. Source: authors.}
+  \label{fig:residualmap}
+\end{figure}
+
+% =========================================================================
+\section{Discussion}\label{sec:discussion}
+
+\subsection{How Much of the Published Disagreement Is Methodological}\label{sec:disc:window}
+
+The window dependence measured here is not scatter but drift, and its direction
+follows from how least squares distributes weight. Every sample inside the
+interval enters the misfit of Equation~\eqref{eq:misfit} with the same weight,
+while the information about the flexural parameter is concentrated in one part
+of the profile: the position of the outer-rise crest, which fixes $x_{b}$ and
+therefore $\alpha$. A window that stops short of the crest removes that
+constraint and leaves only the steep near-axis limb, where amplitude and
+wavelength trade off against each other, so the minimisation compensates a
+shortened wavelength with a larger end load and returns a stiffer plate. A
+window extended far beyond the crest has the opposite defect: it fills the sum
+of squares with samples whose deflection is close to zero and whose departures
+from it are seafloor roughness, not bending, so the fit is pulled by
+structure the elastic model was never meant to reproduce. Between those two
+regimes the estimate passes through no stationary point, which is why sweeping
+the limit produces a systematic trend and not a plateau with noise on it.
+
+A second mechanism compounds the first. The governing equation constrains the
+fourth derivative of the deflection, whereas the windowed misfit constrains only
+the deflection itself. Two solutions that agree closely on $w$ within a chosen
+interval can differ substantially in curvature, and it is curvature that carries
+the rigidity. The classical procedure therefore has no mechanism for detecting
+that a good-looking fit is mechanically wrong, and the analyst receives no
+signal from the misfit that the window has misled it. This is the reason the
+physics residual of Equation~\eqref{eq:residual} is reported for the baseline as
+well as for the proposed method: it is the diagnostic the baseline lacks.
+
+The consequence for the literature is a reallocation of variance rather than a
+dismissal of it. If two-fifths of the interquartile spread among published determinations at a
+single margin can be reproduced by moving the window on one profile, then the
+physical explanations advanced for that spread have been asked to account for
+variance they did not generate. Inelastic yielding, bend-faulting, hydration and
+along-strike variability remain real and remain necessary
+\cite{ContrerasReyes2007,Craig2014,KaoChen1996,MoscosoContrerasReyes2012}; what
+changes is the size of the residual disagreement they are required to explain,
+and therefore the confidence with which any one of them can be preferred over
+another. The point applies with particular force to compilations, where values
+obtained under different conventions are placed on a common axis and the
+convention is not recorded \cite{BryWhite2007,Manriquez2014}.
+
+The metric $\Delta_{w}$ is not, however, a property of the method alone. A
+segment with a well-developed outer rise constrains $x_{b}$ from a wide range of
+windows and is correspondingly insensitive to the choice; a segment whose rise
+is subdued, buried beneath trench fill or overprinted by a subducting seamount
+offers the crest to only a narrow band of windows and is correspondingly
+fragile. Window dependence is therefore expected to be largest exactly where the
+flexural signal is weakest, which is also where a physical interpretation of a
+low recovered thickness is most tempting. That coincidence is the practical
+danger the sweep exposes: the margins at which the procedure is least
+trustworthy are not flagged as such by the misfit it returns.
+
+\subsection{Physical Interpretation of the Window-Free Parameters}\label{sec:disc:physics}
+
+Once the window is removed, the recovered thickness can be read against plate
+age without the confounding of procedure. The expectation from a cooling plate
+is that the effective elastic thickness tracks the depth to a controlling
+isotherm and therefore grows approximately as the square root of age
+\cite{SteinStein1992,ParsonsSclater1977,CalmantCazenave1987}, and the
+circum-Pacific gravity inversion of \citeA{HunterWatts2016} places that isotherm
+at $390 \pm 10$~\textdegree C. Figure~\ref{fig:teage} sets the window-free
+estimates against that expectation, and they do not follow it: the recovered
+thickness is near uniform with plate age rather than rising as its square root
+(Section~\ref{sec:res:parameters}), so no single isotherm is resolved and none
+is quoted here. Were an age dependence present, the implied temperature rather
+than the thickness would be the quantity to compare across studies, because it
+is insensitive to the absolute calibration of $T_{e}$ in a way the thickness is
+not: a systematic bias in recovered thickness shifts the isotherm by a much
+smaller amount through the
+square-root relation.
+
+\begin{figure}\centering
+  \includegraphics[width=0.92\textwidth]{fig_teage}
+  \caption{Window-free effective elastic thickness against the age of the
+  subducting plate. One marker per segment, coloured by trench and keyed in the
+  legend, with vertical bars giving the ensemble standard deviation. Broken
+  lines, the depth to isotherms of a plate cooling model at the temperatures
+  labelled on each curve, which a plate deforming elastically to a
+  temperature-controlled depth would follow. Solid line and shaded band, the
+  relation fitted to the segments here with its confidence interval. Thickness
+  in kilometres and age in millions of years. Software used for plotting
+  figure: Python \texttt{3.12.13}, Matplotlib \texttt{3.11.1}. Source:
+  authors.}
+  \label{fig:teage}
+\end{figure}
+
+The recovered thickness is an effective quantity and sits below the mechanical
+thickness of the plate, because bending at a trench drives the outer fibres past
+the yield envelope and the plate ceases to behave elastically through its full
+depth \cite{GoetzeEvans1979,WattsBurov2003}. The size of that reduction is not a
+nuisance but a measurement: it is the degree to which the plate has failed under
+its own bending. What the joint formulation adds is the means to test the
+reduction against its supposed cause. A single-parameter fit returns $T_{e}$ and
+nothing else, so the inference that yielding explains a low value rests on
+comparison with an external thermal model. Recovering the curvature
+$\kappa$ from the same differentiable solution
+(Equation~\eqref{eq:derived}) allows the reduction to be regressed directly on
+the bending that is supposed to produce it, segment by segment, with both
+quantities measured on the same profile. That regression is
+Figure~\ref{fig:yielding} and Section~\ref{sec:res:yielding}.
+
+The bending moment and shear force carry information of a different sort. They
+are the loads transmitted at the broken end of the plate, and their along-strike
+variation is a map of what the plate boundary applies to the incoming
+lithosphere, not of how the lithosphere resists it. Segments where the
+moment is large but the thickness is unremarkable indicate strong loading of a
+normal plate; segments where the thickness falls while the moment does not
+indicate weakening. Separating those two cases is not possible from $T_{e}$
+alone, and it is the reason the parameter set is recovered jointly rather than
+sequentially. Departures below the age trend are expected where the incoming
+plate is pervasively bend-faulted and hydrated, since both processes reduce
+strength without changing age \cite{ContrerasReyes2007,Craig2014}, and the
+segments concerned should also carry elevated outer-rise normal faulting.
+
+\subsection{Comparison With Classical and Machine-Learning Inversion}\label{sec:disc:comparison}
+
+Against the windowed baseline the proposed formulation is expected to agree
+where the classical procedure is best conditioned and to depart where it is
+not: agreement at segments with a broad, well-expressed outer rise, and
+divergence at segments where no window both reaches the crest and avoids the
+far-field roughness. The baseline comparison of
+Section~\ref{sec:res:validation} is therefore read as a test of conditioning
+rather than of correctness. A window-free estimate that falls inside the swept
+span is not thereby confirmed;
+it is shown to be one of the values the classical method could have produced,
+and the sweep shows how much choosing was required to produce it.
+
+Differences from published circum-Pacific compilations have
+identifiable sources. \citeA{HunterWatts2016} invert free-air gravity in place
+of bathymetry, allow $T_{e}$ to vary across the outer rise, and
+require profiles at least 750~km long; each of those three choices should raise
+their recovered thickness relative to a uniform-plate bathymetric fit on a
+shorter profile, and the first also removes the sediment correction as a source
+of error. \citeA{BryWhite2007} reappraised the trench compilation and attributed
+much of its scatter to modelling choices, a conclusion this study supports on
+different evidence and extends by isolating one of those choices and measuring
+it. The older profile determinations
+\cite{Caldwell1976,BodineWatts1979,Tandon2000} used the same broken-plate
+solution reproduced in the baseline here, so any difference from them is
+attributable to data vintage and to the window, which is precisely what the
+sweep quantifies.
+
+The relation to data-driven inversion is one of kind, not of degree. Neural
+inversions of seismic impedance and petrophysical properties learn a mapping
+from observations to parameters out of a training set of examples
+\cite{Das2019,ChenSchuster2020,Zhao2024}, and their central difficulty is
+whether that mapping survives outside the distribution it was trained on. No
+such training set exists for flexural parameters, because the true elastic
+thickness has never been measured anywhere; the quantity is defined by the model
+that recovers it. The formulation used here therefore never learns an inverse
+operator. The network is a differentiable representation of one deflection
+profile, the governing equation supplies the constraint that a training set
+would otherwise have to supply, and generalisation in the usual sense does not
+arise. The cost of that immunity is the absence of amortisation: every new
+margin requires an optimisation, whereas a trained operator would require a
+forward pass.
+
+Within physics-informed inversion the flexural problem is unusually
+well-conditioned, and much of the literature in this area addresses far harder
+cases. Reviews of the field, and its applications
+to wave-equation and rock-physics inversion, contend with many coupled unknown
+fields and with residuals that constrain those fields only weakly
+\cite{Schuster2024,Li2024Probabilistic,Li2024Bayesian,Zhang2025GINN,ChengAlkhalifah2023,Qu2022Separate}.
+Flexure presents a single ordinary differential equation with one physically meaningful
+coefficient per segment, so the recovered coefficient can be interpreted
+directly instead of being treated as a by-product of fitting a field. That is
+what makes it a suitable case for asking whether the physics constraint can
+replace an analyst's interval, and the answer obtained here would not transfer
+automatically to a problem with a less identifiable parameter.
+
+\subsection{Transferability of the Formulation}\label{sec:disc:transfer}
+
+The ingredient that makes the window disappear is not the neural network. It is
+the pairing of a governing equation expressible as a differentiable residual
+with a parameter that enters that equation as a coefficient. Given both, the
+constraint can be imposed at arbitrary coordinates instead of at sampled data
+points, and the estimate stops depending on which samples the analyst chose to
+include. Any inverse problem posed on a profile and governed by an ordinary
+differential equation of that form is a candidate for the same PINN
+treatment: thermal subsidence and
+heat-flow profiles across cooling lithosphere, flexure under seamount, fracture
+zone and mountain loads \cite{Sandwell1982,StewartWatts1997,Bodine1981},
+compaction profiles through sedimentary sections. Where no governing equation is
+available, the residual can be replaced by one recovered from the data through
+sparse or symbolic identification
+\cite{XuChangZhang2020,Chen2022SGA,XuZengZhang2023,MakkeChawla2024,UdrescuTegmark2020,MessengerBortz2021,Tibshirani1996},
+at the cost of the interpretability that a known coefficient supplies here. The
+requirement is restrictive in a useful way, since it excludes problems where the
+governing relation is empirical and the residual therefore carries no
+independent information.
+
+The window problem itself generalises further than the method does. Wherever a
+model is fitted to part of a profile, and the extent of that part is set by
+judgement rather than estimated, the reported parameter carries an unquantified
+component of the analyst's choice, and the sweep performed here is a cheap
+diagnostic that any such study can run without adopting a new inversion. Running
+it costs one additional loop around an existing fitting routine and yields a
+number, $\Delta_{w}$, that can be reported beside the parameter. The wider
+recommendation of this study is that such a number be reported as a matter of
+routine, in the same way that a formal uncertainty is, because a value quoted
+without it is conditional on information the reader does not have. Operator
+learning \cite{Yang2026DeepONet} and gradient-enhanced residual formulations
+\cite{Wang2025gIBPINN} would extend the approach to problems where either the
+cost of per-profile optimisation or the accuracy of the high-order derivatives
+becomes the binding constraint.
+
+\subsection{Strengths and Limitations}\label{sec:disc:limits}
+
+The strengths of the design are the ones that follow from applying a single
+automated procedure to every margin: no interpretive digitisation of the axis,
+one release of one data product per variable, an inversion with no analyst
+parameter, and a parameter set recovered jointly with uncertainty rather than
+assembled from separate fits. Those properties are what make the twenty margins
+comparable with each other, which is the condition no published compilation has
+been able to satisfy.
+
+One offset requires comment before the limitations proper, because it is
+visible in Figure~\ref{fig:windowspread} and a reader will meet it there. The
+interval-free estimate lies below the windowed population at every window
+setting and at every margin: the median across segments is 9.4~km against a
+windowed median that ranges from 10.6 to 17.1~km depending on where the
+interval is placed, and against published determinations that are generally
+larger still. Part of that gap is the window dependence itself, since a
+windowed value is not a single number but a range of 40~per cent, and the two
+distributions overlap. The remainder is not explained here. The recovered
+thickness is a fifth of the mechanical thickness
+(Section~\ref{sec:res:yielding}), it does not increase with plate age
+(Section~\ref{sec:res:parameters}), and its identifiability under the fixed
+initialisation and fixed loss weighting of this run was not tested
+(Table~\ref{tab:limitations}). Those three observations are consistent with a
+thickness that the data constrain weakly and that the inversion resolves
+towards the lower end of the admissible range, and the absolute values carry
+that caveat. What does not depend on them is the window result,
+which is a comparison of the classical estimator with itself.
+
+The limitations are of three kinds, summarised with their bounding tests in
+Table~\ref{tab:limitations}. The first kind concerns the physical model. A
+uniform rigidity per segment is an idealisation of a plate that weakens towards
+the axis, and \citeA{HunterWatts2016} found the thickness landward of the outer
+rise to be substantially below that seaward of it; the estimate recovered here
+is consequently an average along the fitted profile and should not be read as
+the near-axis value. Neglecting the in-plane force removes a parameter that
+trades off against rigidity, and treating the plate as elastic means the
+recovered thickness is effective, not mechanical, by construction
+\cite{GoetzeEvans1979,WattsBurov2003}. A spherical shell in bending carries a stress state that a flat plate cannot
+reproduce \cite{Tanimoto1998}, which bounds the geometry as well as the
+rheology. None of these invalidates the window
+result, because the baseline and the proposed method share the same physical
+model and the comparison between them is therefore internally consistent; they
+bound how far the absolute values may be compared with determinations made under
+other assumptions.
+
+The second kind concerns the data. Profiles reach 250~km seaward of the axis,
+which is short beside the 750~km that \citeA{HunterWatts2016} judged necessary
+for gravity inversion; bathymetric flexure is a more local observable, but the
+far-field reference level is correspondingly less well determined, and that
+uncertainty enters the amplitude more strongly than the wavelength and therefore
+$T_{e}$ less strongly than $w_{b}$. More awkwardly, the current bathymetric
+compilation predicts depth from satellite gravity through a trained neural
+transfer wherever soundings are absent \cite{GEBCO2023,Tozer2019}, so at
+those nodes an elastic inversion is being applied to a surface that already
+embodies an isostatic gravity-to-depth mapping. The type identifier grid is
+retained precisely so that this can be bounded instead of ignored. The
+auxiliary grids are coarse and enter once per profile, and the sediment
+correction assumes a single density where compaction makes density depth
+dependent \cite{Sykes1996,Straume2019}.
+
+The third kind concerns the estimator. Ensemble dispersion captures sensitivity
+to initialisation and to collocation sampling but is not a posterior
+\cite{Psaros2023}, so the quoted uncertainties should be read as a lower bound.
+Segments at which the physics residual remains elevated after training are the
+honest output of the method, not a failure of it: they identify where a
+uniform elastic plate cannot reproduce the observed bending at all, and no
+choice of window would have revealed that, because the windowed procedure has no
+residual to elevate.
+
+\begin{table}\centering
+  \caption{Limitations of the study, the direction of their expected effect on
+  the recovered parameters, and the test that bounds each. Every entry is
+  addressed by a specific recommendation in
+  Section~\ref{sec:disc:future}. Source: authors.}
+  \label{tab:limitations}
+  \begin{tabular}{p{0.28\textwidth}p{0.32\textwidth}p{0.30\textwidth}}
+    \toprule
+    Limitation & Effect on recovered parameters & Bounding test \\
+    \midrule
+    Uniform rigidity per segment &
+    Averages a plate that weakens towards the axis; overstates near-axis
+    strength &
+    Two-zone refit on segments with sufficient seaward extent \\
+    In-plane force neglected &
+    Trades off against rigidity; sign depends on whether the force is
+    compressive &
+    Recovery from synthetic profiles generated with a non-zero in-plane force \\
+    Elastic rheology, no explicit yielding &
+    Recovered thickness is effective, below the mechanical thickness &
+    Ratio of recovered thickness to isotherm depth against curvature,
+    carried out in Figure~\ref{fig:yielding} \\
+    Configuration not swept systematically &
+    Unknown; a thickness insensitive to the data would be indistinguishable
+    here from one the data determine &
+    Repetition of the training under varied physics weighting, network
+    capacity, collocation density and profile spacing \\
+    Profile half-length of 250~km &
+    Far-field reference weakly determined; affects amplitude more than
+    wavelength &
+    Sensitivity to profile length where longer profiles are admissible \\
+    Bathymetry partly predicted from gravity &
+    Deflection at predicted nodes embodies a gravity-to-depth mapping &
+    Restriction to segments above a measured-node fraction \\
+    Coarse auxiliary grids, one value per profile &
+    Sediment and thermal corrections cannot resolve along-profile structure &
+    Perturbation of both corrections within provider tolerances \\
+    Uniform sediment density &
+    Sediment unloading biased where the section is thick and compacted &
+    Refit with a depth-dependent density model \\
+    Ensemble dispersion is not a posterior &
+    Quoted uncertainties are a lower bound &
+    Comparison with variational inference on a subset of segments \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Future Research Directions}\label{sec:disc:future}
+
+The most immediate extension follows from the first limitation and costs little.
+Because the network already returns a differentiable deflection, allowing the
+rigidity to vary along the profile as a second network output, rather than as a
+per-segment constant, converts the uniform-plate assumption into an estimated
+function and would place the near-axis weakening of \citeA{HunterWatts2016} on
+the same window-free footing as the segment average. The same change makes the
+in-plane force estimable, since it enters the residual as another coefficient of
+the same equation.
+
+Two extensions address the data. A joint data term over bathymetry and free-air
+gravity would use the two observables that respond to the same deflection with
+different error structures, and would allow the segments dominated by predicted
+depth to be inverted against an independent field. Extending the profiles where
+the margin geometry permits it would test directly how much of the far-field
+reference uncertainty propagates into the recovered parameters, which
+Table~\ref{tab:limitations} can at present only bound.
+
+Beyond the Pacific, the procedure applies unchanged to the Indian and Atlantic
+subduction margins and to relict trenches, where an elastic thickness recovered
+without a window would test whether the age relation established here holds
+where the loading has ceased. Coupling the recovered curvature and bending
+moment to outer-rise seismicity would convert the mechanical interpretation of
+Section~\ref{sec:disc:physics} into a prediction that can be falsified against
+an independent catalogue. Finally, replacing ensemble dispersion with
+variational inference would supply the posterior that the present uncertainties
+approximate, at a computational cost that the small parameter count of the
+flexural problem makes affordable
+\cite{Li2024Bayesian,Psaros2023,Fasel2022,SashidharKutz2022}.
+
+% =========================================================================
+\section{Conclusions}\label{sec:conclusions}
+
+Estimates of the effective elastic thickness of the subducting plate disagree
+between studies of the same margin, and the analysis window over which a
+profile-based inversion is fitted has been an unquantified contributor to that
+disagreement, imposed before the fit and reported with no uncertainty of its
+own. This study set out to measure how much of the published disagreement the
+window alone can produce, and to recover the flexural parameters without one.
+Both objectives were pursued on the same twenty circum-Pacific trenches and the
+same open-access grids, so that the methodological finding and the geophysical
+finding rest on identical data.
+
+The first objective is answered by a systematic sweep of the window limits
+through the classical broken-plate inversion. Holding the profile, the
+corrections and the physical model fixed, and varying nothing but the interval
+over which the misfit is summed, reproduces a spread in recovered elastic
+thickness amounting to forty per cent of the typical value at a segment. The spread is
+not random scatter around a preferred window but a systematic drift, because the
+information that fixes the flexural wavelength is concentrated at the outer-rise
+crest while a least-squares misfit weights every sample in the interval alike.
+The second objective is answered by a differentiable elastic-plate formulation
+in which the deflection is represented by a neural network, the governing
+equation is imposed as a residual at collocation points spanning the whole
+profile, and the elastic thickness is a trainable coefficient of the same
+computational graph. Because the constraint is the equation and not the extent
+of a fitting interval, no window enters the estimate; the only boundary that
+remains is the trench axis, which the data locate. The formulation recovers
+prescribed parameters from synthetic profiles and returns values consistent with
+independent published determinations at the same margins.
+
+The contributions are therefore both methodological and geophysical. Isolating
+the procedural component of the published disagreement changes what the physical
+explanations for that disagreement are required to account for: inelastic
+yielding, bend-faulting, hydration and along-strike variability remain necessary,
+but the residual variance they must explain is smaller than the compilation
+suggests, and inferences calibrated against that compilation inherit a bias whose
+size is now measurable. The window-dependence metric introduced here can be
+computed by any study that fits a model to part of a profile, at the cost of one
+additional loop around an existing routine, and reporting it beside a recovered
+parameter makes explicit a dependence that is otherwise invisible to the reader.
+Alongside the elastic thickness, the same differentiable solution yields the
+bending moment, the shear force and the curvature without further fitting, which
+separates margins where the plate is weak from margins where the load is large,
+a distinction a single-parameter fit cannot draw. The implementation and the
+per-segment parameter database are released, so that every result can be
+regenerated from the cited grids.
+
+Three limitations bound these conclusions and are set out in full in
+Section~\ref{sec:disc:limits}. The plate is treated as elastic with a uniform
+rigidity per segment and no in-plane force, so the recovered thickness is an
+effective quantity averaged along the fitted profile. The profiles reach 250~km
+seaward of the axis, which leaves the far-field reference level less well
+determined than a longer section would, and the bathymetric grid predicts depth
+from satellite gravity wherever soundings are absent. None of these affects the
+window result, because the windowed baseline and the proposed method share the
+same physical model and the same profiles, and the comparison between them is
+internally consistent; they bound instead how far the absolute values may be set
+against determinations made under other assumptions.
+
+The clearest next step follows from the first of those limitations and requires
+little change to the formulation: because the network already returns a
+differentiable deflection, allowing the rigidity to vary along the profile
+converts the uniform-plate assumption into an estimated function and makes the
+in-plane force estimable in the same way. Adding free-air gravity to the data
+term would let the segments dominated by predicted depth be inverted against an
+independent field, and extending the profiles where the margin geometry permits
+would test how much of the far-field uncertainty propagates into the recovered
+parameters. Beyond the Pacific the procedure applies unchanged to other
+subduction margins and to relict trenches, where a window-free thickness would
+test whether the age relation established here survives the cessation of
+loading. More generally, any inverse problem posed on a profile and governed by
+a differential equation with a physically meaningful coefficient admits the same
+treatment, and the analyst's interval can be removed from it by the same means.
+
+% =========================================================================
+\appendix
+\section{Code Listings}\label{app:code}
+
+The listings below are the full routines. The short shell fragments that
+document the data handling remain in the body beside the step they
+describe; what is collected here is only the code too long to sit inside
+the argument.
+
+\begin{lstlisting}[caption={Extraction and correction of a bending profile from
+the bathymetric grid, implementing Equations~\eqref{eq:sediment} to
+\eqref{eq:deflection}. This routine converts raw soundings into the deflection
+used by both inversions.},label={lst:profiles},language=Python]
+import numpy as np
+
+RHO_M, RHO_S, RHO_W = 3300.0, 2300.0, 1030.0
+G = 9.81
+
+def reference_depth(age_ma):
+    """GDH1 plate-cooling reference depth in metres (Stein & Stein, 1992)."""
+    return np.where(age_ma < 20.0,
+                    2600.0 + 365.0 * np.sqrt(np.maximum(age_ma, 0.0)),
+                    5651.0 - 2473.0 * np.exp(-0.0278 * age_ma))
+
+def bending_profile(depth_grid, sed_grid, age_ma, origin, azimuth,
+                    halflen=250.0, step=1.0):
+    """Return distance (km) and deflection (m) along one trench-normal profile.
+
+    Geometry follows extract_profiles.sh: profiles are cast every 10 km along
+    the traced axis, half-length 250 km either side, sampled every 1 km.
+    """
+    x = np.arange(-halflen, halflen + step, step)           # km, positive seaward
+    lon, lat = geodesic_walk(origin, azimuth, x)            # WGS84, not projected
+    d_obs = depth_grid.interp(lon, lat)                     # m, positive down
+    h_sed = sed_grid.interp(lon, lat).clip(min=0.0)         # m
+
+    # isostatic sediment unloading to the flexed basement (Sykes, 1996)
+    d_cor = d_obs + h_sed * (RHO_M - RHO_S) / (RHO_M - RHO_W)
+
+    # age and sediment are sampled once, at the axis node, and held constant
+    w = d_cor - reference_depth(age_ma)                     # m, positive down
+    return x, w
+
+
+def screen(x, w, tid_measured, step=1.0):
+    """Apply the four rejection criteria; return True if the profile is kept."""
+    seaward = x >= 0.0
+    if np.isnan(w[seaward]).any():
+        return False                                        # land or data gap
+    if tid_measured[seaward].mean() < 0.5:
+        return False                                        # mostly predicted
+    residual = w - running_median(w, window=int(50.0 / step))
+    rough = np.abs(residual) > 500.0
+    if longest_run(rough) > int(10.0 / step):
+        return False                                        # seamount or fracture zone
+    crest = (x >= 20.0) & (x <= 200.0)
+    if not crest.any() or np.argmin(w[crest]) in (0, crest.sum() - 1):
+        return False                                        # no interior outer-rise crest
+    return True
+\end{lstlisting}
+
+\begin{lstlisting}[caption={The composite loss of
+Equations~\eqref{eq:residual} to \eqref{eq:lossterms}, with the governing
+equation evaluated on the network output through automatic differentiation.
+This is the load-bearing routine of the paper.},label={lst:loss},language=Python]
+import torch
+
+E_YOUNG, NU, D_RHO, G = 7.0e10, 0.25, 2270.0, 9.81
+
+def rigidity(te):
+    """Flexural rigidity from effective elastic thickness (Eq. 5)."""
+    return E_YOUNG * te ** 3 / (12.0 * (1.0 - NU ** 2))
+
+def d4(w, x):
+    """Fourth derivative of w with respect to x by automatic differentiation."""
+    for _ in range(4):
+        w = torch.autograd.grad(w, x, torch.ones_like(w), create_graph=True)[0]
+    return w
+
+def composite_loss(net, emb, x_obs, w_obs, x_col, te, w0, length,
+                   lam_d=1.0, lam_p=1.0, lam_b=1.0):
+    # data term: network deflection against the corrected profile
+    w_hat = w0 * net(x_obs / length, emb)
+    loss_d = torch.mean(((w_hat - w_obs) / w0) ** 2)
+
+    # physics term: residual of Eq. 4 at collocation points spanning the profile
+    x_col = x_col.requires_grad_(True)
+    w_col = w0 * net(x_col / length, emb)
+    res = (rigidity(te) * d4(w_col, x_col) + D_RHO * G * w_col) / (D_RHO * G * w0)
+    loss_p = torch.mean(res ** 2)
+
+    # boundary term: deflection and slope vanish in the far field
+    x_far = torch.full((1, 1), length, requires_grad=True)
+    w_far = w0 * net(x_far / length, emb)
+    dw_far = torch.autograd.grad(w_far, x_far, torch.ones_like(w_far),
+                                 create_graph=True)[0]
+    loss_b = (w_far / w0) ** 2 + (length * dw_far / w0) ** 2
+
+    return lam_d * loss_d + lam_p * loss_p + lam_b * loss_b.squeeze()
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Automatic tracing of the trench axis as the locus
+of deepest nodes. The published plate boundary seeds the search and does not
+constrain the result; the depth guard separates a trench from a parallel
+back-arc depression, and the retracing check rejects an axis that doubles
+back.},label={lst:axes},language=Python]
+import numpy as np
+
+SEED_KM, SEARCH_KM, SEARCH_STEP = 10.0, 60.0, 0.5   # seed spacing, half-length
+SMOOTH_KM, GUARD_WIN, DEPTH_TOL = 25.0, 21, 2000.0  # filter, guard window, m
+MIN_PIECE_KM, MAX_GAP_KM, MAX_RATIO = 40.0, 250.0, 1.6
+
+def prepare_seed(boundary, box):
+    """Clip PB2002 to the trench box and chain the pieces into one polyline."""
+    pieces = [p for p in clip(boundary, box) if track_length(p) >= MIN_PIECE_KM]
+    if not pieces:
+        return None
+    chain = [pieces.pop(0)]
+    while pieces:                       # nearest endpoint, never bridge a gap
+        nxt, gap = nearest_endpoint(chain[-1], pieces)
+        if gap > MAX_GAP_KM:
+            break
+        chain.append(pieces.pop(pieces.index(nxt)))
+    return orient(concatenate(chain))
+
+def trace_axis(grid, boundary, box):
+    """Return the traced axis, or None if it retraces and must be rejected."""
+    seed = prepare_seed(boundary, box)
+    if seed is None or len(seed) < 3:
+        return None
+    nodes = resample(seed, SEED_KM)
+
+    # deepest sample on a perpendicular search profile at each seed node
+    axis, depth = [], []
+    for lon, lat, az in with_local_strike(nodes):
+        pts = cross_profile(lon, lat, az, SEARCH_KM, SEARCH_STEP)
+        z = grid.interp(*pts.T)
+        if np.all(np.isnan(z)):
+            continue
+        k = int(np.nanargmin(z))
+        axis.append(pts[k]); depth.append(z[k])
+    axis, depth = np.asarray(axis), np.asarray(depth)
+
+    # depth guard: a node in a parallel trough is an isolated shallow excursion
+    # against the rolling median of its neighbours, not a gradual shoaling
+    keep = depth <= running_median(depth, GUARD_WIN) + DEPTH_TOL
+    axis = axis[keep]
+    if len(axis) < 3:
+        return None
+
+    axis[:, 0] %= 360.0                 # wrap BEFORE filtering, or +/-180 averages to 0
+    axis = median_filter_along_track(axis, SMOOTH_KM)
+
+    # retracing check: arcuate margins reach 1.3, so 1.6 means the path folds
+    if track_length(axis) / end_to_end(axis) > MAX_RATIO:
+        return None
+    return axis
+\end{lstlisting}
+
+\begin{lstlisting}[caption={The windowed least-squares baseline, reproducing
+the classical procedure of Equations~\eqref{eq:caldwell} to
+\eqref{eq:misfit}. The window limits enter as fixed arguments, which is the
+dependence the sweep of Listing~\ref{lst:sweep}
+measures.},label={lst:baseline},language=Python]
+import numpy as np
+from scipy.optimize import least_squares
+
+E_YOUNG, NU, D_RHO, G = 7.0e10, 0.25, 2270.0, 9.81
+
+def caldwell(x_km, w_b, x_b):
+    """Broken-plate deflection, positive down (Caldwell et al., 1976)."""
+    u = 0.75 * np.pi * x_km / x_b
+    return np.sqrt(2.0) * w_b * np.exp(0.75 * np.pi - u) * np.cos(u)
+
+def te_from_xb(x_b_km):
+    """Elastic thickness from the crest distance, via alpha (Eqs. 6, 9)."""
+    alpha = 4.0 * (x_b_km * 1.0e3) / (3.0 * np.pi)
+    return (3.0 * (1.0 - NU ** 2) * D_RHO * G * alpha ** 4 / E_YOUNG) ** (1 / 3)
+
+def windowed_fit(x_km, w_m, x_l, x_s):
+    """Fit inside [x_l, x_s]; the two limits are supplied, never estimated."""
+    m = (x_km >= x_l) & (x_km <= x_s) & np.isfinite(w_m)
+    if m.sum() < 20:
+        return {"valid": False}
+    xs, ws = x_km[m], w_m[m]
+
+    best = None
+    for w0 in (0.2 * ws.max(), 0.5 * ws.max(), ws.max()):     # starting grid, so
+        for xb0 in (60.0, 100.0, 140.0, 180.0):               # the minimum is global
+            try:
+                r = least_squares(lambda q: caldwell(xs, *q) - ws, [w0, xb0],
+                                  method="lm", max_nfev=2000)
+            except Exception:
+                continue
+            if best is None or r.cost < best.cost:
+                best = r
+    if best is None or best.x[1] <= 0:
+        return {"valid": False}
+
+    w_b, x_b = best.x
+    return {"valid": True, "w_b": w_b, "x_b": x_b,
+            "Te": te_from_xb(x_b) / 1.0e3,                    # km
+            "misfit": 2.0 * best.cost / m.sum()}
+\end{lstlisting}
+
+\begin{lstlisting}[caption={The window-sweep driver of
+Algorithm~\ref{alg:sweep}. It repeats the baseline over the grid of window
+limits on a fixed profile with a fixed physical model, and returns the
+sensitivity surface together with the metric
+$\Delta_{w}$.},label={lst:sweep},language=Python]
+import numpy as np
+
+X_L = np.arange(0.0, 50.0 + 1e-9, 5.0)      # landward limits, km
+X_S = np.arange(50.0, 250.0 + 1e-9, 2.0)    # seaward limits, km (11 x 101)
+MIN_SPAN_KM = 80.0
+
+def window_metric(te):
+    """Delta_w of Eq. (15): normalised by the median, not the mean."""
+    f = te[np.isfinite(te)]
+    if f.size < 2:
+        return np.nan
+    med = np.median(f)
+    return np.nan if med == 0 else float((f.max() - f.min()) / med)
+
+def sweep_segment(x_km, w_m):
+    """Te over the plane of window limits for one corrected profile."""
+    te = np.full((X_L.size, X_S.size), np.nan)
+    for i, x_l in enumerate(X_L):
+        for j, x_s in enumerate(X_S):
+            if x_s - x_l < MIN_SPAN_KM:
+                continue
+            f = windowed_fit(x_km, w_m, x_l, x_s)
+            if f["valid"]:
+                te[i, j] = f["Te"]
+    return te
+
+def sweep_all(profiles):
+    """Run the sweep for every segment and tabulate the spread."""
+    rows = {}
+    for seg, (x_km, w_m) in profiles.items():
+        te = sweep_segment(x_km, w_m)
+        f = te[np.isfinite(te)]
+        rows[seg] = {"n_windows": int(f.size),
+                     "min": float(f.min()), "max": float(f.max()),
+                     "median": float(np.median(f)),
+                     "iqr": float(np.subtract(*np.percentile(f, [75, 25]))),
+                     "delta_w": window_metric(te)}
+    return rows
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Network definition and the joint training loop over
+all segments, following Algorithm~\ref{alg:joint}. One elastic thickness is
+trainable per segment; the trunk is shared, and the loss weights are rebalanced
+from the gradient norms.},label={lst:train},language=Python]
+import torch
+import torch.nn as nn
+
+class Trunk(nn.Module):
+    """Deflection network: scaled coordinate and segment embedding in, w out."""
+    def __init__(self, n_segments, width=64, depth=5, emb_dim=8):
+        super().__init__()
+        self.emb = nn.Embedding(n_segments, emb_dim)
+        layers, n_in = [], 1 + emb_dim
+        for _ in range(depth):
+            layers += [nn.Linear(n_in, width), nn.Tanh()]
+            n_in = width
+        layers += [nn.Linear(width, 1)]
+        self.net = nn.Sequential(*layers)
+
+    def forward(self, x_scaled, seg_id):
+        e = self.emb(seg_id).expand(x_scaled.shape[0], -1)
+        return self.net(torch.cat([x_scaled, e], dim=1))
+
+def rebalance(losses, params, weights):
+    """Gradient-norm balancing (Wang et al., 2021): equalise the pull of each
+    term, so the data term cannot dominate the physics term early on."""
+    norms = []
+    for L in losses:
+        g = torch.autograd.grad(L, params, retain_graph=True, allow_unused=True)
+        norms.append(torch.sqrt(sum((gi ** 2).sum() for gi in g if gi is not None)))
+    ref = max(n.item() for n in norms)
+    return [0.9 * w + 0.1 * (ref / max(n.item(), 1e-12))
+            for w, n in zip(weights, norms)]
+
+def train(trunk, te_raw, segments, n_adam=20000, lr=1e-3, rebalance_every=100):
+    """te_raw is one trainable scalar per segment; softplus keeps Te positive."""
+    opt = torch.optim.Adam(list(trunk.parameters()) + [te_raw], lr=lr)
+    sched = torch.optim.lr_scheduler.ExponentialLR(opt, gamma=0.9999)
+    weights = [1.0, 1.0, 1.0]
+
+    for step in range(n_adam):
+        opt.zero_grad()
+        batch = draw_segment_batch(segments)
+        terms = [torch.zeros((), device=te_raw.device) for _ in range(3)]
+        for seg in batch:
+            te = torch.nn.functional.softplus(te_raw[seg.index])
+            d, p, b = loss_terms(trunk, seg, te)   # Eq. (14), resampled points
+            terms[0] += d; terms[1] += p; terms[2] += b
+        if step % rebalance_every == 0 and step > 0:
+            weights = rebalance(terms, list(trunk.parameters()), weights)
+        total = sum(w * t for w, t in zip(weights, terms))
+        total.backward()
+        opt.step(); sched.step()
+        record(step, total, terms, weights, te_raw)
+        if converged(rel_tol=1e-4, patience=2000):
+            break
+
+    lbfgs = torch.optim.LBFGS(list(trunk.parameters()) + [te_raw],
+                              max_iter=5000, history_size=50,
+                              tolerance_grad=1e-12, line_search_fn="strong_wolfe")
+    lbfgs.step(lambda: closure(trunk, te_raw, segments, weights))
+    return trunk, torch.nn.functional.softplus(te_raw).detach()
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Ensemble-based uncertainty estimation and its
+propagation to the derived flexural parameters. Each member is an independent
+training run; the derived quantities are evaluated within a member and only
+then summarised, so their uncertainties inherit the correlation structure of
+the ensemble.},label={lst:ensemble},language=Python]
+import numpy as np
+import torch
+
+def run_ensemble(segments, n_members=20, base_seed=20260401):
+    """Independent initialisation, collocation draw and batch order per member."""
+    members = []
+    for m in range(n_members):
+        torch.manual_seed(base_seed + m)
+        np.random.seed(base_seed + m)
+        trunk = Trunk(n_segments=len(segments))
+        te_raw = torch.full((len(segments),), 3.0, requires_grad=True)
+        trunk, te = train(trunk, te_raw, segments)
+
+        # M, V and kappa are evaluated INSIDE the member, on its own solution
+        derived = {seg.name: flexural_parameters(trunk, seg, te[seg.index])
+                   for seg in segments}
+        members.append({"Te": te.numpy(), "derived": derived})
+    return members
+
+def summarise(members, segments):
+    """Mean and standard deviation across members, per segment and quantity."""
+    out = {}
+    for seg in segments:
+        te = np.array([m["Te"][seg.index] for m in members])
+        row = {"Te": te.mean(), "Te_sd": te.std(ddof=1)}
+        for q in ("M", "V", "kappa", "residual"):
+            v = np.array([m["derived"][seg.name][q] for m in members])
+            row[q], row[q + "_sd"] = v.mean(), v.std(ddof=1)
+        out[seg.name] = row
+    return out
+
+def grid_perturbation(segments, n_draws=50):
+    """Input-grid uncertainty, kept separate from the ensemble dispersion:
+    resample the sediment and reference-depth corrections within the
+    tolerances quoted by their providers and refit."""
+    spread = {}
+    for seg in segments:
+        te = [refit(perturb_corrections(seg)) for _ in range(n_draws)]
+        spread[seg.name] = float(np.std(te, ddof=1))
+    return spread
+\end{lstlisting}
+
+% =========================================================================
+\section*{Open Research Section}
+No new data were collected for this study. Every input is an open-access data
+set obtained in the release stated in Table~\ref{tab:data} and is available from
+its provider without restriction. Bathymetry and the accompanying type
+identifier grid are the GEBCO\_2023 Grid \cite{GEBCO2023}, distributed at
+\url{https://www.gebco.net/} and built on version 2.5.5 of SRTM15+
+\cite{Tozer2019}. Oceanic crustal age is the EarthByte compilation of
+\citeA{Seton2020}; total sediment thickness is GlobSed \cite{Straume2019};
+free-air gravity anomalies are the Scripps Institution of Oceanography grid,
+version 33.1, of \citeA{Sandwell2014}. Plate boundary geometry is the PB2002
+model \cite{Bird2003}, plate angular velocities are MORVEL \cite{DeMets2010},
+and shorelines are GSHHG version 2.3.7 \cite{WesselSmith1996}. Each carries a
+persistent identifier in its reference-list entry.
+
+The analysis code and the derived data are developed openly at
+\url{https://github.com/paulinelemenkova/pacific-flexure-window-dependence} and
+archived at Zenodo \cite{LemenkovaPiskarev2026Archive}, persistent identifier
+\url{https://doi.org/10.5281/zenodo.21938887}. That identifier is the concept
+digital object identifier and always resolves to the most recent deposit; the
+version described here is v1.0.0. The archive contains the analysis code, the
+traced trench axes, the derived per-profile and per-segment tables, and the
+complete output of run r02. The raw extracted profiles are not deposited; they
+are regenerated from the cited open-access grids by
+\texttt{extract\_profiles.sh}. Every figure in this paper is regenerated from
+the archived tables by the commands of Listing~\ref{lst:reproduce}, which read
+only files present in the archive and write only into the figure directory.
+
+\begin{lstlisting}[caption={Regenerating the figures from the archived run.
+Each command names its input table explicitly, so a figure cannot silently pick
+up a table from a different run.},label={lst:reproduce},language=bash]
+# The parameter maps join their values by segment name, so the band headers
+# must carry names. build_te_segments.py writes the value instead, and this
+# step adds the name in front of it without disturbing the geometry.
+python3 src/postprocess/name_segments.py data/segments/te_segments.gmt \
+    runs/r02/segments.csv data/segments/te_segments_named.gmt
+
+export RELIEF="GEBCO_2023.nc" REG=116/290/-60/62 GRDRES=01m
+SEGMENTS=data/segments/te_segments.gmt bash figures/fig_temap.sh
+SEGMENTS=data/segments/residual_segments.gmt bash figures/fig_residualmap.sh
+SEGMENTS=data/segments/te_segments_named.gmt \
+    VALUES=data/segments/derived_segments.csv MCPT=inferno \
+    bash figures/fig_parametermaps.sh
+python3 figures/fig_teage.py --table data/segments/segment_features.csv \
+    --outdir figures/out
+python3 figures/fig_convergence.py --history runs/r02/history.csv \
+    --outdir figures/out
+\end{lstlisting}
+
+The code is released under the
+MIT licence and the derived data under CC BY 4.0. The archive reproduces every
+figure and table in this paper from the open-access grids cited above.
+
+The computational environment is deposited with the code as an explicit
+specification: Python 3.12.13 with NumPy 2.4.6 \cite{Harris2020}, SciPy 1.18.0
+\cite{Virtanen2020}, pandas 3.0.5, Matplotlib 3.11.1 \cite{Hunter2007} and
+GMT 6.5.0 \cite{Wessel2019}, together with the operating system, the
+pinned versions of all transitive dependencies and the fixed random seed from
+which every reported run was initialised. The inversion reported here was
+executed on one processor of an ARM64 workstation under macOS 26.4.1, without
+graphics acceleration. Two environments are specified rather
+than one, as Listing~\ref{lst:run} sets out: the training of
+Section~\ref{sec:pinn} runs under Python 3.11.15 with PyTorch 2.13.0, NumPy
+2.4.6 and pandas 3.0.5 alone,
+and the analysis and rendering under the stack listed above. The separation is
+recorded because resolving PyTorch into the rendering environment moves several
+of the versions above backwards, and the figures of this paper report the
+versions that produced them.
+
+\acknowledgments
+
+The study received no specific funding.
+
+\section*{Author contributions}
+Author contributions following the CRediT taxonomy: Conceptualization,
+A.L.P.; Methodology, P.L.; Software, P.L.; Validation, P.L. and A.L.P.; Formal
+analysis, P.L. and A.L.P.; Investigation, P.L.; Resources, A.L.P.; Data
+curation, P.L.; Writing -- original draft, P.L. and A.L.P.; Writing -- review
+and editing, P.L. and A.L.P.; Visualization, P.L.; Supervision, A.L.P.; Project
+administration, A.L.P.; Funding acquisition, A.L.P.
+
+% -------------------------------------------------------------------------
+\section*{Conflict of Interest Statement}
+
+The authors have no conflicts of interest to disclose.
+
+% -------------------------------------------------------------------------
+\bibliography{Bibliography}
+
+\end{document}
