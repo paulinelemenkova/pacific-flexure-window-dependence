@@ -8,6 +8,12 @@
 # elastic description cannot reproduce, and therefore where the mapped
 # thickness should not be read at face value.
 #
+# COLOUR SCALE (this revision): the residual bands and the histogram bins now
+# use the same gradual violet->blue->green->yellow->brown->red ramp as
+# fig_temap, so the two sheets read consistently (coauthor's request). Low
+# residual = violet, worst fits = red. RESCPT/HISTCPT restore the old palettes;
+# with both left at their grad6 default the cpt-city tree is no longer needed.
+#
 # USAGE
 #   SEGMENTS=residual_segments.gmt ./fig_residualmap.sh
 #   SEGMENTS=residual_segments.gmt RMAX=5e-3 ./fig_residualmap.sh
@@ -106,9 +112,9 @@
 #             directory, or by absolute path. Falls back to the archive
 #             location under 250_JGR_ML_C/scripts/essential_data_scripts.
 #   GEBCODIR  the external volume holding the bathymetry. Default
-#             "/Volumes/TOSHIBA EXT/DATA". The path contains a space, so every
-#             use is quoted; keep the quotes if you edit it.
-#   RELIEF    bathymetric grid. Default ${GEBCODIR}/GEBCO_2023.nc, matching
+#             "/Volumes/TOSHIBA/DATA". Still quoted everywhere it is used, so a
+#             future path with a space keeps working; keep the quotes if you edit it.
+#   RELIEF    bathymetric grid. Default ${GEBCODIR}/GEBCO_2026.nc, matching
 #             fig_temap. If that file is absent but the volume is mounted, the
 #             newest GEBCO*.nc there is used and a note is printed -- check it
 #             against the release cited in the Open Research section before
@@ -137,13 +143,18 @@
 #   CPTDIR    root of the unzipped cpt-city collection. Default
 #             ${SCRIPTDIR}/cpt-city, i.e. beside the script rather than in the
 #             current directory, so the figure builds the same from anywhere.
-#   RESCPT    palette for the residual bands. Default gist/ncar.cpt, a bright
-#             multi-hue ramp. RESCPT=lajolla restores the sequential Crameri
-#             scale -- see the note beside the makecpt call, which matters for
-#             the claim made in Section 4.7 of the manuscript.
-#   HISTCPT   palette filling the histogram bars. Default ssz/qual-mixed-12,
-#             the Statistik Stadt Zuerich qualitative set; the bars are
-#             coloured by bin so the distribution reads at inset size.
+#   RESCPT    palette for the residual bands. Default grad6: the gradual
+#             violet -> blue -> green -> yellow -> brown -> red ramp shared with
+#             fig_temap (coauthor's request), sampled across the log scale so a
+#             well-fitted margin is violet and the worst fits are red. RESCPT=
+#             gist/ncar.cpt restores the old bright multi-hue ramp; RESCPT=
+#             lajolla the sequential Crameri scale (see the note beside the
+#             makecpt call, which matters for the Section 4.7 claim).
+#   HISTCPT   palette filling the histogram bars. Default grad6: the same
+#             gradual ramp as the map, so the twelve inset bars run violet->red
+#             and match the residual colour bar. HISTCPT=<cpt-city path>
+#             restores a qualitative set such as ssz/qual-mixed-12 (the
+#             Statistik Stadt Zuerich twelve-colour set).
 #   RELIEFCPT palette for the bathymetry. Default oleron (Crameri, hard hinge
 #             at sea level). RELIEFCPT=gray restores the desaturated base that
 #             keeps the residual the only saturated colour on the sheet.
@@ -171,16 +182,16 @@ set -eu
 #              absolute path. cd's into a subshell so the caller's working
 #              directory is untouched. The literal default below is the
 #              archive location, used only if the resolution somehow fails.
-#   GEBCODIR   the external volume holding the bathymetric grid. NOTE the
-#              space in "TOSHIBA EXT": every use is quoted, and it must stay
-#              quoted if you edit these lines.
+#   GEBCODIR   the external volume holding the bathymetric grid. Default
+#              "/Volumes/TOSHIBA/DATA". Every use is quoted, so keep the quotes
+#              if you edit these lines to a path that has a space.
 #   CPTDIR     the unzipped cpt-city collection, expected beside the script
 #              rather than in the current directory, so the figure builds the
 #              same way from anywhere.
 # ---------------------------------------------------------------------------
 SCRIPTDIR=${SCRIPTDIR:-$(cd "$(dirname "$0")" 2>/dev/null && pwd)}
 SCRIPTDIR=${SCRIPTDIR:-/Users/polinalemenkova/Documents/My_Papers/1-PAPERS-ACCEPTED/250_JGR_ML_C/scripts/essential_data_scripts}
-GEBCODIR=${GEBCODIR:-/Volumes/TOSHIBA EXT/DATA}
+GEBCODIR=${GEBCODIR:-/Volumes/TOSHIBA/DATA}
 
 SEGMENTS=${SEGMENTS:?multisegment file with -Z residual required}
 AXES=${AXES:-}
@@ -188,7 +199,7 @@ AXES=${AXES:-}
 # exact file is absent but the volume is mounted, take the newest GEBCO*.nc in
 # GEBCODIR and SAY SO -- a figure built from a different release than the paper
 # claims is a reproducibility failure, so this never happens silently.
-RELIEF=${RELIEF:-${GEBCODIR}/GEBCO_2023.nc}
+RELIEF=${RELIEF:-${GEBCODIR}/GEBCO_2026.nc}
 if [ "${RELIEF#@}" = "${RELIEF}" ] && [ ! -f "${RELIEF}" ] && [ -d "${GEBCODIR}" ]; then
     ALT=$(ls -1t "${GEBCODIR}"/GEBCO*.nc 2>/dev/null | head -1 || true)
     if [ -n "${ALT}" ]; then
@@ -221,8 +232,8 @@ RMIN=${RMIN:-1e-4}
 RMAX=${RMAX:-1e-1}
 RINC=${RINC:-3}
 CPTDIR=${CPTDIR:-${SCRIPTDIR}/cpt-city}
-RESCPT=${RESCPT:-${CPTDIR}/gist/ncar.cpt}
-HISTCPT=${HISTCPT:-${CPTDIR}/ssz/qual-mixed-12.cpt}
+RESCPT=${RESCPT:-grad6}
+HISTCPT=${HISTCPT:-grad6}
 RELIEFCPT=${RELIEFCPT:-oleron}
 GRIDX=${GRIDX:-30}
 GRIDY=${GRIDY:-20}
@@ -258,7 +269,7 @@ case "${RELIEF}" in
   @*) : ;;
   *) if [ ! -f "${RELIEF}" ]; then
          printf 'error: relief grid not found: %s\n' "${RELIEF}" >&2
-         printf 'is the TOSHIBA EXT volume mounted? or pass RELIEF=@earth_relief_06m\n' >&2
+         printf 'is the TOSHIBA volume mounted? or pass RELIEF=@earth_relief_06m\n' >&2
          exit 1
      fi ;;
 esac
@@ -363,7 +374,7 @@ if [ -n "${GRDRES}" ]; then
     # COARSENING, so filter before decimating. grdsample alone answers with
     #     grdsample [WARNING]: Output sampling interval in x exceeds input
     #     interval and may lead to aliasing.
-    # and it is right: GEBCO_2023 is on a 15-arcsecond grid, so going to 01m
+    # and it is right: GEBCO is on a 15-arcsecond grid, so going to 01m
     # throws away three cells in four by picking one and ignoring the rest.
     # On a shaded-relief base that shows as speckle in the hillshade, because
     # grdgradient then differentiates the aliased surface. grdfilter with a
@@ -371,7 +382,7 @@ if [ -n "${GRDRES}" ]; then
     # the textbook decimation and costs one extra pass over the grid.
     # Set GRDFILT=0 to go back to plain grdsample.
     #
-    # THE FILTER WIDTH MUST BE IN KILOMETRES, NOT DEGREES. GEBCO_2023 is
+    # THE FILTER WIDTH MUST BE IN KILOMETRES, NOT DEGREES. GEBCO is
     # flagged geographic, and for such a grid grdfilter rejects -D0 with
     #     grdfilter [ERROR]: Option -D: Input grid is geographic but your
     #     distance mode is Cartesian
@@ -455,21 +466,41 @@ case "${RINC}" in
      printf 'It is a code, not a decade width; GMT rejects anything else.\n' >&2
      exit 1 ;;
 esac
-# gist/ncar is a bright multi-hue ramp: violet and blue at the well-fitted end,
-# green and yellow through the middle, red at the worst. It is NOT jet -- the
-# hue order differs and it does not have jet's cyan-yellow compression -- but it
-# shares jet's weaknesses: not perceptually uniform, not colour-blind safe, not
-# greyscale-safe. Section 4.7 of the manuscript claims all three of every scale
-# on the sheet, so either soften that sentence or run with RESCPT=lajolla, which
-# is the Crameri sequential scale and satisfies the claim as written. No -I
-# here: ncar runs dark-to-bright with increasing z, which already puts the worst
-# fits at the bright end. lajolla runs the other way, so add -I if you switch.
+# RESIDUAL BANDS: the gradual violet->red ramp shared with fig_temap, so the
+# two sheets read consistently (coauthor's request). Low residual = violet
+# (well fitted), worst fits = red -- so the poorly fitted margins are the
+# reddest, most saturated bands, the correct emphasis for a diagnostic figure
+# and the same emphasis gist/ncar gave at its bright end. The ramp is written
+# here as a normalized master and sampled across the LOG scale by makecpt (-Qo),
+# so the RGB values can be quoted in the caption and cannot drift when GMT's
+# bundled CPTs change. No -I: the master already runs violet(low)->red(high).
+#
+# CAVEAT, unchanged from gist/ncar and still true: a violet-to-red ramp is a
+# rainbow-family scale -- not perceptually uniform, not colour-blind safe, not
+# greyscale-safe. Section 4.7 claims all three of every scale on the sheet, so
+# either soften that sentence or run with RESCPT=lajolla, the Crameri sequential
+# scale (add -I, it runs bright-to-dark). RESCPT=gist/ncar.cpt restores the old
+# bright multi-hue ramp. Both, and any other value, take the makecpt path below.
+if [ "${RESCPT}" = "grad6" ]; then
+    cat > grad6_master.cpt <<'EOF'
+# gradual violet -> blue -> green -> yellow -> brown -> red, normalized 0-1
+0.0 138/43/226   0.2 40/80/200
+0.2 40/80/200    0.4 40/160/70
+0.4 40/160/70    0.6 245/215/40
+0.6 245/215/40   0.8 150/90/40
+0.8 150/90/40    1.0 205/30/30
+EOF
+    RESCPT_USE=grad6_master.cpt
+else
+    RESCPT_USE=${RESCPT}
+fi
 printf 'residual palette: %s\n' "${RESCPT}"
-gmt makecpt -C"${RESCPT}" -T"${RMIN}"/"${RMAX}"/"${RINC}" -Qo > res.cpt
+gmt makecpt -C"${RESCPT_USE}" -T"${RMIN}"/"${RMAX}"/"${RINC}" -Qo > res.cpt
 # A segment carrying no -Z value takes the NaN colour: white, as in fig_temap,
 # and named in the key, so the along-strike line stays continuous and a gap is
-# never misread as a low residual.
-printf 'N\twhite\n' >> res.cpt
+# never misread as a low residual. Replace any N line makecpt wrote with white.
+grep -v '^N' res.cpt > res.cpt.$$ && printf 'N\twhite\n' >> res.cpt.$$ \
+    && mv res.cpt.$$ res.cpt
 
 # The Z values on their own, for the distribution inset. They are stored as
 # log10 because the residual spans decades: histogram bins of constant width
@@ -588,6 +619,25 @@ fi
 # trailing ";label" and any B/F/N line ignored. If the bin count and the colour
 # count ever diverge the colours cycle, so the inset still draws.
 # -------------------------------------------------------------------------
+# If HISTCPT=grad6, colour the bins by the same gradual violet->red ramp as the
+# map, so the inset bars run violet->red left to right and match the residual
+# colour bar. Twelve even samples of the ramp, one per bin (the -4..-1 range at
+# BIN=0.25 is exactly twelve bins). Written as a cpt the block below already
+# knows how to read, so nothing else in the histogram machinery changes. These
+# twelve triplets are the same ones fig_temap paints its Te classes with.
+if [ "${HISTCPT}" = "grad6" ]; then
+    GRAD12='138/43/226 94/60/214 49/77/202 40/109/153 40/145/94 96/175/62
+            189/200/48 228/192/40 184/135/40 155/84/39 180/57/35 205/30/30'
+    : > grad6_hist.cpt
+    gi=0
+    for gc in ${GRAD12}; do
+        printf '%d\t%s\t%d\t%s\n' "${gi}" "${gc}" "$((gi + 1))" "${gc}" \
+            >> grad6_hist.cpt
+        gi=$((gi + 1))
+    done
+    HISTCPT=grad6_hist.cpt
+fi
+
 NBIN=$(awk -v l="${lo}" -v h="${hi}" -v b="${BIN}" \
            'BEGIN { printf "%d", (h - l) / b + 0.5 }')
 awk -v lo="${lo}" -v b="${BIN}" -v n="${NBIN}" '

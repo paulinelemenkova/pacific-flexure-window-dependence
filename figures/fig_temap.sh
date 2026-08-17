@@ -2,12 +2,14 @@
 # fig_temap -- circum-Pacific map of the recovered effective elastic thickness.
 #
 # Segment-wise values are drawn as coloured along-strike bands on shaded
-# bathymetric relief. The relief is deliberately desaturated so that the only
-# saturated colour on the page is the quantity being mapped.
+# bathymetric relief. The bathymetry is coloured with oleron (Crameri, hinged
+# at sea level) and held subordinate to the Te bands by a -t25 transparency;
+# pass RELIEFCPT=gray to restore the desaturated grey base.
 #
 # USAGE
-#   SEGMENTS=te_segments.gmt AXES=axes ./fig_temap.sh
-#   SEGMENTS=te_segments.gmt RELIEF=gebco_pacific.nc ./fig_temap.sh
+#   SEGMENTS=te_segments.gmt ./fig_temap.sh
+#   SEGMENTS=te_segments.gmt CPT=paired ./fig_temap.sh    # old qualitative scale
+#   SEGMENTS=te_segments.gmt RELIEFCPT=gray ./fig_temap.sh
 #   ./fig_temap.sh                     # basemap only, for checking the layout
 #
 # INPUTS (environment variables)
@@ -32,13 +34,18 @@
 #             tracings that do not register exactly, so the axis is omitted;
 #             segments with no recovered value are drawn as white bands,
 #             explained in the map key.
-#   RELIEF    bathymetric grid. Default: the local GEBCO 2023 grid on the
-#             TOSHIBA EXT volume. The path contains a space, so it is quoted
-#             everywhere it is used; keep the quotes if you edit it. Pass
-#             RELIEF=@earth_relief_06m to fall back to the GMT server.
+#   RELIEF    bathymetric grid. Default: the local GEBCO 2026 grid on the
+#             TOSHIBA volume (/Volumes/TOSHIBA/DATA/GEBCO_2026.nc). Quoted
+#             everywhere it is used, so a future path with a space still works;
+#             keep the quotes if you edit it. Pass RELIEF=@earth_relief_06m to
+#             fall back to the GMT server. CHECK the release named here against
+#             the Open Research section before submitting the sheet.
+#   RELIEFCPT palette for the bathymetry. Default oleron (Crameri, hard hinge
+#             at sea level). RELIEFCPT=gray restores the desaturated base that
+#             keeps the elastic thickness the only saturated colour on the sheet.
 #   GRDRES    optional resampling step applied to the cut grid, e.g. 01m.
 #             Unset by default (the grid is used at its native step). GEBCO
-#             2023 is 15 arc-seconds; over this region that is roughly
+#             is 15 arc-seconds; over this region that is roughly
 #             36000 x 29000 nodes, far more than a 17 cm sheet can show, and
 #             grdimage will be slow and memory-hungry. At 600 dpi one pixel
 #             spans about 2 arc-minutes here, so GRDRES=01m loses nothing
@@ -67,35 +74,29 @@
 #             high, since -JQ keeps degrees square. Nothing else needs moving:
 #             the key and the ocean label are placed in map
 #             coordinates, not page coordinates.
-#   CPT       master palette for the thickness classes. Default paired, the
-#             twelve-colour ColorBrewer qualitative set, one colour per class.
-#             The twelve classes and the twelve Paired colours match exactly,
-#             so each class gets its own named colour and NO interpolation
-#             happens: the palette is written out directly rather than through
-#             makecpt, because makecpt asked to span a qualitative master over
-#             a boundary list blends adjacent entries and reintroduces the
-#             near-duplicates this is meant to remove.
+#   CPT       palette for the thickness classes. Default grad6: a GRADUAL
+#             sequential ramp violet -> blue -> green -> yellow -> brown -> red,
+#             one evenly spaced hue per class, requested by the coauthor so a
+#             reader can infer "thicker" from "warmer". Twelve fixed triplets
+#             are pasted onto the twelve geometric boundaries (see TLEVELS),
+#             exactly as the old Paired set was, so NO interpolation happens and
+#             the RGB values can be quoted in the caption. One hue PER CLASS,
+#             not per km: makecpt -C<ramp> -T<boundaries> would spread the ramp
+#             linearly over 4-68 km and collapse the five sub-12 km classes --
+#             where most segments sit -- into one violet-blue smear, the very
+#             jet/rainbow failure this avoids.
 #
-#             WHY NOT jet/rainbow: those are continuous ramps, and over the
-#             geometric boundaries below they spend six of their twelve slices
-#             inside the blue end. Since the thickness distribution is
-#             concentrated at 8-12 km, that put most of the segments into
-#             classes that cannot be told apart on the printed sheet, which
-#             defeats the purpose of a discrete scale.
+#             CPT=paired restores the old twelve-colour ColorBrewer qualitative
+#             set (non-monotonic: a reader cannot read magnitude from it).
+#             Any other value (batlow, roma, ...) falls back to the makecpt
+#             path and is resampled over TLEVELS.
 #
-#             CAVEATS, both worth a line in the caption. (i) Paired is
-#             qualitative and deliberately non-monotonic -- it alternates a
-#             light and a dark tone of each hue -- so the bar reads as twelve
-#             labelled categories, not as a light-to-dark ramp; a reader cannot
-#             infer "thicker" from "darker". (ii) ColorBrewer does not certify
-#             Paired as colour-blind safe, and it is not greyscale-safe. If
-#             Section 4.7 of the manuscript keeps its claim that the colour
-#             scales are perceptually uniform, colour-blind readable and
-#             greyscale-safe, citing Crameri (2020), then either that sentence
-#             or this palette has to change; CPT=batlow makes the sentence true
-#             and still gives twelve distinguishable steps.
-#
-#             Any other value of CPT falls back to the old makecpt path.
+#             CAVEAT worth a line in the caption: a violet-to-red ramp is a
+#             rainbow-family scale -- NOT certified colour-blind safe and NOT
+#             greyscale-safe. If Section 4.7 keeps its claim that every scale on
+#             the sheet is perceptually uniform, colour-blind readable and
+#             greyscale-safe (Crameri 2020), that sentence and this palette
+#             conflict: soften the sentence, or use CPT=batlow / CPT=roma.
 #   TLEVELS   comma-separated class boundaries for the discrete colour scale,
 #             km. Default 4,5,6,8,10,12,16,20,25,32,40,50,68 -- thirteen
 #             boundaries, so twelve classes, spaced geometrically rather than
@@ -108,16 +109,18 @@
 #             nothing lands in an overflow triangle and none is drawn.
 #   TMIN/TMAX/TINC   legacy LINEAR override, km. Ignored unless all three are
 #             set, in which case TLEVELS is not used. Kept so old invocations
-#             still run; new work should pass TLEVELS.
+#             still run; new work should pass TLEVELS. A GMT master must be
+#             named in CPT for this path -- the grad6 sentinel is not one.
 #   OUT       output basename. Default fig_temap.
 set -eu
 
 SEGMENTS=${SEGMENTS:-}
 AXES=${AXES:-}
-RELIEF=${RELIEF:-/Volumes/TOSHIBA EXT/DATA/GEBCO_2023.nc}
+RELIEF=${RELIEF:-/Volumes/TOSHIBA/DATA/GEBCO_2026.nc}
+RELIEFCPT=${RELIEFCPT:-oleron}
 GRDRES=${GRDRES:-}
 REG=${REG:-116/290/-60/62}
-CPT=${CPT:-paired}
+CPT=${CPT:-grad6}
 TLEVELS=${TLEVELS:-4,5,6,8,10,12,16,20,25,32,40,50,68}
 TMIN=${TMIN:-}; TMAX=${TMAX:-}; TINC=${TINC:-}
 OUT=${OUT:-fig_temap}
@@ -152,12 +155,13 @@ case "${RELIEF}" in
   @*) : ;;
   *) if [ ! -f "${RELIEF}" ]; then
          printf 'error: relief grid not found: %s\n' "${RELIEF}" >&2
-         printf 'is the TOSHIBA EXT volume mounted?\n' >&2
+         printf 'is the TOSHIBA volume mounted?\n' >&2
          exit 1
      fi ;;
 esac
 
-# Relief in grey, so the elastic thickness is the only saturated colour.
+# Shaded relief. The hillshade intensity (grdgradient) is unchanged; only the
+# colour under it changes from grey to oleron below.
 gmt grdcut "${RELIEF}" -R"${REG}" -Grelief.nc
 if [ -n "${GRDRES}" ]; then
     printf 'resampling relief to %s\n' "${GRDRES}"
@@ -166,23 +170,88 @@ if [ -n "${GRDRES}" ]; then
 fi
 gmt grdinfo relief.nc -C | awk '{printf "relief grid: %d x %d nodes\n", $10, $11}'
 gmt grdgradient relief.nc -A315 -Ne0.5 -Gshade.nc
-gmt makecpt -Cgray -T-8000/2000/250 -Z > relief.cpt
+
+# BATHYMETRY: oleron (Crameri), a Scientific Colour Map with a HARD HINGE at
+# sea level, matching fig_residualmap so the two sheets share a base. Because
+# the hinge is hard, a -T range that spans zero stretches the ocean half onto
+# -8000..0 and the land half onto 0..6000 INDEPENDENTLY, so the colour break
+# lands exactly on the coastline. No z-increment and no -Z: resampling a hinged
+# master at fixed steps (the old -Cgray -T-8000/2000/250 -Z) aliases the
+# transitions at the hinge. The grey coast fill covers the land half, so only
+# oleron's ocean half shows here; +6000 is kept so the ramp still reads if that
+# fill is ever removed.
+#
+# TRADE-OFF: the grey base this replaces kept the elastic thickness the only
+# saturated colour on the sheet. With a coloured base and a coloured Te scale
+# the two compete; the -t25 transparency on grdimage (further down) is what
+# keeps the base subordinate, so do NOT remove it. Pass RELIEFCPT=gray to
+# restore the desaturated base.
+printf 'relief palette: %s (hinged at sea level)\n' "${RELIEFCPT}"
+gmt makecpt -C"${RELIEFCPT}" -T-8000/6000 > relief.cpt
 
 # Discrete scale: the recovered thickness is not resolved finely enough to
 # justify a continuous ramp, and discrete bands are read off a map faster.
 # The classes are geometric, not uniform -- see TLEVELS in the header for why.
 #
-# The twelve ColorBrewer Paired colours, in their published order. Held here
-# rather than fetched through -Cpaired so that the file cannot change under the
-# figure when GMT's bundled CPTs are updated, and so the RGB triplets can be
-# quoted in the caption if a reviewer asks.
+# The twelve gradual-ramp colours, evenly spaced samples along the six-anchor
+# sequence violet@0 -> blue@0.2 -> green@0.4 -> yellow@0.6 -> brown@0.8 ->
+# red@1.0. Held here rather than fetched through -C<ramp> so the file cannot
+# change under the figure when GMT's bundled CPTs are updated, and so the RGB
+# triplets can be quoted in the caption. The old ColorBrewer Paired set is kept
+# below for CPT=paired.
+GRAD12='138/43/226 94/60/214 49/77/202 40/109/153 40/145/94 96/175/62
+        189/200/48 228/192/40 184/135/40 155/84/39 180/57/35 205/30/30'
 PAIRED12='166/206/227 31/120/180 178/223/138 51/160/44 251/154/153 227/26/28
           253/191/111 255/127/0 202/178/214 106/61/154 255/255/153 177/89/40'
 
 if [ -n "${TMIN}" ] && [ -n "${TMAX}" ] && [ -n "${TINC}" ]; then
+    LCPT=${CPT}
+    if [ "${LCPT}" = "grad6" ]; then
+        LCPT=roma
+        printf 'note: legacy linear scale cannot use the grad6 sentinel; using roma.\n' >&2
+        printf 'pass CPT=<a GMT master> to choose another.\n' >&2
+    fi
     printf 'colour scale: LINEAR %s-%s km in %s km steps (legacy override)\n' \
            "${TMIN}" "${TMAX}" "${TINC}"
-    gmt makecpt -C"${CPT}" -T${TMIN}/${TMAX}/${TINC} > te.cpt
+    gmt makecpt -C"${LCPT}" -T${TMIN}/${TMAX}/${TINC} > te.cpt
+
+elif [ "${CPT}" = "grad6" ]; then
+    # GRADUAL SEQUENTIAL RAMP, one evenly spaced hue per class, pasted onto the
+    # geometric boundaries EXACTLY as Paired is below. Each line is
+    #   z_lo  colour  z_hi  colour
+    # with the same colour at both ends, so the slice is flat and GMT never
+    # interpolates the file. Twelve distinct hues keep the crowded sub-12 km
+    # classes separable while the bar still reads violet->red left to right.
+    NB=$(printf '%s' "${TLEVELS}" | awk -F, '{print NF}')
+    NC=$((NB - 1))
+    NG=$(printf '%s\n' ${GRAD12} | wc -l | tr -d ' ')
+    if [ "${NC}" -ne "${NG}" ]; then
+        printf 'error: %s classes from TLEVELS but %s ramp colours.\n' \
+               "${NC}" "${NG}" >&2
+        printf 'grad6 ships %s colours; give %s boundaries in TLEVELS,\n' \
+               "${NG}" "$((NG + 1))" >&2
+        printf 'or pass CPT=batlow for a resamplable ramp.\n' >&2
+        exit 1
+    fi
+    printf 'colour scale: gradual violet->red, %s discrete classes, boundaries %s\n' \
+           "${NC}" "${TLEVELS}"
+    {
+        printf '# Effective elastic thickness, km. Gradual violet->red ramp,\n'
+        printf '# %s classes, one evenly spaced hue each, no interpolation.\n' "${NC}"
+        printf '# COLOR_MODEL = RGB\n'
+        printf '%s\n' "${TLEVELS}" | tr ',' '\n' > /tmp/te_levels.$$
+        printf '%s\n' ${GRAD12} > /tmp/te_colours.$$
+        awk 'NR==FNR {lev[FNR]=$1; nlev=FNR; next}
+             {printf "%s\t%s\t%s\t%s\n", lev[FNR], $1, lev[FNR+1], $1}' \
+            /tmp/te_levels.$$ /tmp/te_colours.$$
+        # Background/foreground take the end classes; N stays white and paints
+        # the "No Te recovered" bands -- the only thing now distinguishing an
+        # unrecovered segment from a recovered one, so it must be drawn.
+        printf 'B\t%s\n' "$(printf '%s\n' ${GRAD12} | head -1)"
+        printf 'F\t%s\n' "$(printf '%s\n' ${GRAD12} | tail -1)"
+        printf 'N\twhite\n'
+    } > te.cpt
+    rm -f /tmp/te_levels.$$ /tmp/te_colours.$$
 
 elif [ "${CPT}" = "paired" ]; then
     # One class per Paired colour, written slice by slice. Each line is
@@ -212,13 +281,6 @@ elif [ "${CPT}" = "paired" ]; then
         awk 'NR==FNR {lev[FNR]=$1; nlev=FNR; next}
              {printf "%s\t%s\t%s\t%s\n", lev[FNR], $1, lev[FNR+1], $1}' \
             /tmp/te_levels.$$ /tmp/te_colours.$$
-        # Background and foreground take the end classes, so a value that
-        # somehow falls outside the range is still drawn in a colour on the
-        # bar rather than in the NaN colour. N stays white: that is what
-        # paints the "No Te recovered" bands. Keep it: the on-map key that
-        # used to explain those bands has been removed, so white is now the
-        # only thing distinguishing an unrecovered segment from a recovered
-        # one, and it must still be drawn.
         printf 'B\t%s\n' "$(printf '%s\n' ${PAIRED12} | head -1)"
         printf 'F\t%s\n' "$(printf '%s\n' ${PAIRED12} | tail -1)"
         printf 'N\twhite\n'
@@ -229,6 +291,10 @@ else
     printf 'colour scale: geometric, boundaries %s, master %s\n' \
            "${TLEVELS}" "${CPT}"
     gmt makecpt -C"${CPT}" -T"${TLEVELS}" > te.cpt
+    # Unrecovered segments must draw white on every palette, not just the
+    # hand-built ones above. Replace any N line makecpt wrote with white.
+    grep -v '^N' te.cpt > te.cpt.$$ && printf 'N\twhite\n' >> te.cpt.$$ \
+        && mv te.cpt.$$ te.cpt
 fi
 NCLASS=$(grep -vc '^#\|^[BFN]' te.cpt)
 printf 'classes: %s\n' "${NCLASS}"
@@ -275,9 +341,9 @@ gmt begin "${OUT}" pdf,png
 
   # Ocean label, as in fig_studyarea. Placed at 205E/5N: the middle of the
   # open central Pacific, clear of every margin, of the key to its south and
-  # of the widened western edge. White on the desaturated relief, with no
-  # halo, so it reads as a base-map label rather than as data. -N because the
-  # anchor is a map coordinate and no clipping is wanted.
+  # of the widened western edge. White on the relief, with no halo, so it reads
+  # as a base-map label rather than as data. -N because the anchor is a map
+  # coordinate and no clipping is wanted.
   #
   # 14p italic, set in capitals: the conventional cartographic treatment for
   # a hydrographic name, and lighter than the 16p bold it replaces, so the
@@ -302,15 +368,15 @@ gmt begin "${OUT}" pdf,png
   # triangle. -B cannot be combined with -L, so the axis label is drawn
   # separately, below the annotations, in map coordinates with -N.
   #
-  # -L matters more with Paired than it did with a ramp. The twelve colours
-  # carry no order, so the bar is a key to be looked up rather than a gradient
-  # to be interpolated by eye, and every boundary must therefore be annotated;
-  # -L guarantees that and gives each class the same width to be read in.
+  # -L still fits the gradual ramp: the twelve hues progress smoothly, but the
+  # scale is a discrete twelve-class key looked up boundary by boundary, so
+  # every boundary must be annotated and every class given equal width to be
+  # read in -- which is exactly what -L guarantees.
   gmt colorbar -Cte.cpt -DJBC+w9c/0.28c+h+o0/1.0c -L
   echo "${LON_MID} ${CAP_LAT} Recovered effective elastic thickness, @~T@~@-e@- (km)" |
       gmt text -F+f9p,Helvetica+jCM -N
 gmt end
 
 printf 'wrote %s.pdf and %s.png\n' "${OUT}" "${OUT}"
-printf 'relief: %s   palette: %s   classes: %s\n' \
-       "${RELIEF}" "${CPT}" "${NCLASS}"
+printf 'relief: %s   relief palette: %s   Te palette: %s   classes: %s\n' \
+       "${RELIEF}" "${RELIEFCPT}" "${CPT}" "${NCLASS}"
